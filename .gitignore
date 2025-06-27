@@ -9,3 +9,11 @@ __pycache__/
 .venv
 env/
 venv/
+
+# Ignore gameboy files
+*.gb
+*.gb.*
+*.gba
+
+# Ignore screenshots
+screenshot.png
