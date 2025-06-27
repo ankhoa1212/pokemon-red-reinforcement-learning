@@ -1,0 +1,4 @@
+pyboy
+pillow
+opencv-python
+gymnasium
