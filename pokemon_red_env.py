@@ -4,7 +4,7 @@ import numpy as np
 from pyboy import PyBoy
 from pyboy.utils import WindowEvent
 from PIL import Image
-from image_stitching import stitch_images
+from image_checker import stitch_images, compare_images
 
 
 class PokemonRedEnv(Env):
@@ -15,11 +15,14 @@ class PokemonRedEnv(Env):
         self._fitness=0
         self._previous_fitness=0
         self.debug = settings["debug"]
-        self.frames_per_action = settings["frames_per_action"]
+        self.frame_rate = settings["frame_rate"]
         self.map = np.array(Image.open(fp=settings["map"]).convert("L"))
         self.max_steps = settings["max_steps"]
         self.output_shape = settings["output_shape"]
+        self.image_directory = settings["image_directory"]
+        self.view = settings.get("view", "null")
         self.steps = 0
+        self.memory = []
 
         self.actions = [            
             WindowEvent.PRESS_ARROW_DOWN,
@@ -42,22 +45,19 @@ class PokemonRedEnv(Env):
         ]
 
         self.action_space = spaces.Discrete(len(self.actions))
-        self.observation_space = spaces.Box(low=0, high=255, shape=settings["output_shape"], dtype=np.uint8)
-        
+        self.observation_space = spaces.Box(low=np.zeros(shape=settings["output_shape"]), high=np.full(shape=settings["output_shape"], fill_value=255), dtype=np.uint8)
+
         self.pyboy = PyBoy(self.game_path)
 
         if not self.debug:
-            self.pyboy.set_emulation_speed(6)
+            self.pyboy.set_emulation_speed(1)
 
         self.reset()
         print("Pokemon Red environment initialized.")
 
 
     def step(self, action):
-        assert self.action_space.contains(action), "%r (%s) invalid" % (action, type(action))
         self._do_action(action)
-
-        # TODO consider disabling renderer when not needed to improve speed
 
         done = self.steps >= self.max_steps
 
@@ -68,47 +68,45 @@ class PokemonRedEnv(Env):
         info = {}
         truncated = False
 
+        self.steps += 1
+        print(f"Step: {self.steps}/{self.max_steps}, Fitness: {self._fitness}, Reward: {reward}")
+
         return observation, reward, done, truncated, info
 
     def _get_obs(self):
-        return self.render()
+        return self.pyboy.screen.ndarray[:, :, 0].astype(np.uint8)
 
     def _do_action(self, action):
         self.pyboy.send_input(self.actions[action])
-        
-        release_action = self.release_actions[action]
-        for i in range(self.frames_per_action):
+        for i in range(self.frame_rate):
             if i == 8:
-                self.pyboy.send_input(release_action)
+                self.pyboy.send_input(self.release_actions[action])
             self.pyboy.tick()
 
     def _calculate_fitness(self):
         self._previous_fitness=self._fitness
+        with self.pyboy.screen.image as img:
+            if not self.memory:
+                self.memory.append(img)
+            else:
+                difference = 1 - compare_images(np.array(img), np.array(self.memory[-1]))
+                self._fitness += difference
+                if difference > 0.5:  # threshold for saving images
+                    img.save(f"{self.image_directory}/{self.steps}.png")
+                    self.memory.append(img)
 
-        # NOTE: Only some game wrappers will provide a score
-        # If not, you'll have to investigate how to score the game yourself
-        new_image = stitch_images(self.render(np_array=True), self.map)
-        if new_image:
-            self.map = new_image
-            self.steps += 1
-            self._fitness += 1
+    def reset(self, seed=None, **kwargs):
+        super().reset(seed=seed, **kwargs)
+        self.pyboy = PyBoy(self.game_path, window=self.view, debug=self.debug)
 
-    def reset(self, seed=0, **kwargs):
-        # restart the game
-        self.pyboy = PyBoy(self.game_path)
-        with open("pokemon_red.gb.state", 'rb') as f:
-            self.pyboy.load_state(f)
         self._fitness=0
         self._previous_fitness=0
 
-        observation=self._get_obs()
-        info = {}
-        return observation, info
+        return self._get_obs(), {}
 
-    def render(self, mode='human', np_array=False):
-        if np_array:
-            return np.array(self.pyboy.screen.ndarray)[:, :, 0]
-        return self.pyboy.screen.ndarray[:, :, 0]
+    def render(self):
+        pass
+        # return self._get_obs()
 
     def close(self):
         self.pyboy.stop()
