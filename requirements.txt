@@ -2,3 +2,4 @@ pyboy
 pillow
 opencv-python
 gymnasium
+stable-baselines3
