@@ -1,4 +1,3 @@
-# Adopted from https://github.com/NicoleFaye/PyBoy/blob/rl-test/PokemonPinballEnv.py
 from gymnasium import spaces, Env
 import numpy as np
 from pyboy import PyBoy
@@ -21,8 +20,9 @@ class PokemonRedEnv(Env):
         self.output_shape = settings["output_shape"]
         self.image_directory = settings["image_directory"]
         self.view = settings.get("view", "null")
-        self.steps = 0
         self.memory = []
+        self.steps = 0
+        self.frames_to_track = 1
 
         self.actions = [            
             WindowEvent.PRESS_ARROW_DOWN,
@@ -45,39 +45,42 @@ class PokemonRedEnv(Env):
         ]
 
         self.action_space = spaces.Discrete(len(self.actions))
-        self.observation_space = spaces.Box(low=np.zeros(shape=settings["output_shape"]), high=np.full(shape=settings["output_shape"], fill_value=255), dtype=np.uint8)
+        self.observation_space = spaces.Dict({
+            "screen": spaces.Box(low=0, high=255, shape=settings["output_shape"], dtype=np.uint8),
+            "last_actions": spaces.MultiDiscrete([len(self.actions)] * self.frames_to_track)
+        })
 
         self.pyboy = PyBoy(self.game_path)
-
         if not self.debug:
-            self.pyboy.set_emulation_speed(1)
-
+            self.pyboy.set_emulation_speed(0)
         self.reset()
-        print("Pokemon Red environment initialized.")
 
 
     def step(self, action):
-        self._do_action(action)
-
+        self.do_action(action)
+        reward=self._calculate_fitness()
         done = self.steps >= self.max_steps
-
-        self._calculate_fitness()
-        reward=self._fitness-self._previous_fitness
-
         observation=self._get_obs()
+        self.steps += 1
+        print(f"Seed: {self.seed}, Step: {self.steps}/{self.max_steps}, Fitness: {self._fitness}, Reward: {reward}")
+
         info = {}
         truncated = False
-
-        self.steps += 1
-        print(f"Step: {self.steps}/{self.max_steps}, Fitness: {self._fitness}, Reward: {reward}")
-
         return observation, reward, done, truncated, info
 
-    def _get_obs(self):
-        return self.pyboy.screen.ndarray[:, :, 0].astype(np.uint8)
+    def update_actions(self, action):
+        self.last_actions = np.roll(self.last_actions, shift=1)
+        self.last_actions[0] = action
 
-    def _do_action(self, action):
+    def _get_obs(self):
+        observation = {
+            "screen": self.pyboy.screen.ndarray[:, :, 0].astype(np.uint8),
+            "last_actions": self.last_actions}
+        return observation
+
+    def do_action(self, action):
         self.pyboy.send_input(self.actions[action])
+        self.update_actions(action)
         for i in range(self.frame_rate):
             if i == 8:
                 self.pyboy.send_input(self.release_actions[action])
@@ -94,19 +97,22 @@ class PokemonRedEnv(Env):
                 if difference > 0.5:  # threshold for saving images
                     img.save(f"{self.image_directory}/{self.steps}.png")
                     self.memory.append(img)
+        return self._fitness-self._previous_fitness
 
     def reset(self, seed=None, **kwargs):
         super().reset(seed=seed, **kwargs)
-        self.pyboy = PyBoy(self.game_path, window=self.view, debug=self.debug)
+        self.seed = seed
+        self.pyboy = PyBoy(self.game_path, window=self.view, debug=self.debug, sound_emulated=False)
 
         self._fitness=0
         self._previous_fitness=0
 
+        self.last_actions = np.zeros((self.frames_to_track,), dtype=np.uint8)
+
         return self._get_obs(), {}
 
     def render(self):
-        pass
-        # return self._get_obs()
+        return self.pyboy.screen.image
 
     def close(self):
         self.pyboy.stop()
