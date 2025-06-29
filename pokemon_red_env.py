@@ -96,13 +96,12 @@ class PokemonRedEnv(Env):
                 difference = 1 - compare_images(np.array(img), np.array(self.memory[-1]))
                 self._fitness += difference
                 if difference > 0.5:  # threshold for saving images
-                    img.save(f"{self.image_directory}/{self.id}_{self.seed}/{self.steps}.png")
+                    img.save(f"{self.image_directory}{self.id}/{self.steps}.png")
                     self.memory.append(img)
         return self._fitness-self._previous_fitness
 
     def reset(self, seed=None, **kwargs):
         super().reset(seed=seed, **kwargs)
-        self.seed = seed
         self.pyboy = PyBoy(self.game_path, window=self.view, debug=self.debug, sound_emulated=False)
 
         self._fitness=0

@@ -23,7 +23,7 @@ def create_env(env_settings, env_id=0, debug=False, seed=0):
         except Exception as e:
             print(f"Environment check failed: {e}")
     print(f"Environment {env_id} created")
-    env.reset(seed)
+    env.reset(seed+env_id)
     return env
 
 if __name__ == "__main__":
