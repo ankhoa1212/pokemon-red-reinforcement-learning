@@ -63,7 +63,7 @@ class PokemonRedEnv(Env):
         done = self.steps >= self.max_steps
         observation=self._get_obs()
         self.steps += 1
-        print(f"Seed: {self.seed}, Step: {self.steps}/{self.max_steps}, Fitness: {self._fitness}, Reward: {reward}")
+        print(f"Step: {self.steps}/{self.max_steps}, Fitness: {self._fitness}, Reward: {reward}, Id: {self.id}")
 
         info = {}
         truncated = False
