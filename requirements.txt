@@ -3,3 +3,6 @@ pillow
 opencv-python
 gymnasium
 stable-baselines3
+# below are for visualization
+tqdm
+rich
