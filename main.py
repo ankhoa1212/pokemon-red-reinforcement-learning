@@ -1,28 +1,33 @@
 from pokemon_red_env import PokemonRedEnv
-import gymnasium as gym
 from gymnasium.utils.env_checker import check_env
-
-# from stable_baselines3 import PPO
-# from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.utils import set_random_seed
+from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
+import os
+import sys
 
 IMAGE_DIRECTORY = 'images/'  # directory to images
+CHECKPOINT_DIRECTORY = 'checkpoints/'  # directory to save checkpoints
 SCREENSHOT_FILENAME = 'screenshot.png'
 MASTER_MAP_FILENAME = 'master_map.png'  # master map of all areas
 
-# TODO consider multiple environments for parallel training
+NUM_CPU = os.cpu_count() if os.cpu_count() is not None else 1
 
-def create_env(env_settings, debug=False):
+def create_env(env_settings, env_id=0, debug=False, seed=0):
     env = PokemonRedEnv(settings=env_settings)
+    set_random_seed(seed)
     if debug:
         try:
             check_env(env)
         except Exception as e:
             print(f"Environment check failed: {e}")
+    print(f"Environment {env_id} created with seed: {seed} and settings: {env_settings}")
+    env.reset(seed)
     return env
 
 if __name__ == "__main__":
     episode_length = 1000  # number of steps per episode
-    checkpoint_path = 'checkpoints/'  # path to save checkpoints
     env_settings = {
         "game_path": "pokemon_red.gb",
         "debug": False,
@@ -33,15 +38,17 @@ if __name__ == "__main__":
         "image_directory": IMAGE_DIRECTORY,
         "view": "SDL2"
     }
-    environment = create_env(env_settings)
+    # environment = create_env(env_settings)
+    environments = DummyVecEnv([lambda: create_env(env_settings, env_id=i) for i in range(NUM_CPU)])
+    # environments = SubprocVecEnv()
 
-    # TODO implement neural network model
+    checkpoint_callback = CheckpointCallback(save_freq=episode_length, save_path=CHECKPOINT_DIRECTORY,
+                                     name_prefix='trainer')
 
-    # checkpoint_callback = CheckpointCallback(save_freq=episode_length, save_path=checkpoint_path,
-    #                                  name_prefix='trainer')
-
-    # model = PPO.load()
-    while True:
-        action = environment.action_space.sample()  # sample a random action
-        obs, rewards, terminated, truncated, info = environment.step(action)
-        environment.render()
+    model = PPO("MultiInputPolicy", environments, n_steps=episode_length, batch_size=episode_length*NUM_CPU,verbose=1)  # initialize PPO model
+    print(model.policy)  # print the model's policy architecture
+    model.learn(total_timesteps=episode_length*NUM_CPU*10, callback=checkpoint_callback, tb_log_name="trainer_ppo", progress_bar=True)
+    # while True:
+    #     action = environment.action_space.sample()  # sample a random action
+    #     obs, rewards, terminated, truncated, info = environment.step(action)
+    #     environment.render()
