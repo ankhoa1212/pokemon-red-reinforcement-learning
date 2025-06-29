@@ -13,16 +13,16 @@ SCREENSHOT_FILENAME = 'screenshot.png' # screenshot filename
 MASTER_MAP_FILENAME = 'master_map.png'  # master map filename
 
 NUM_CPU = os.cpu_count() if os.cpu_count() is not None else 1
-
+NUM_CPU=1
 def create_env(env_settings, env_id=0, debug=False, seed=0):
     env = PokemonRedEnv(settings=env_settings)
-    set_random_seed(seed)
+    set_random_seed(seed, using_cuda=True)
     if debug:
         try:
             check_env(env)
         except Exception as e:
             print(f"Environment check failed: {e}")
-    print(f"Environment {env_id} created with seed: {seed} and settings: {env_settings}")
+    print(f"Environment {env_id} created")
     env.reset(seed)
     return env
 
@@ -38,9 +38,12 @@ if __name__ == "__main__":
         "image_directory": IMAGE_DIRECTORY,
         "view": "SDL2"
     }
-    # environment = create_env(env_settings)
-    environments = DummyVecEnv([lambda: create_env(env_settings, env_id=i) for i in range(NUM_CPU)])
-    # environments = SubprocVecEnv()
+    
+    try:
+        environments = SubprocVecEnv([lambda: create_env(env_settings, env_id=i) for i in range(NUM_CPU)])
+    except Exception as e:
+        print(f"SubprocVecEnv failed, falling back to DummyVecEnv: {e}")
+        environments = DummyVecEnv([lambda: create_env(env_settings, env_id=i) for i in range(NUM_CPU)])
 
     checkpoint_callback = CheckpointCallback(save_freq=episode_length, save_path=CHECKPOINT_DIRECTORY,
                                      name_prefix='trainer')
