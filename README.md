@@ -1,15 +1,15 @@
 # pokemon-red-reinforcement-learning
 Playing Pokemon Red with Reinforcement Learning techniques. 
 
-Inspired by Peter Whidden's YouTube video: https://www.youtube.com/watch?v=DcYLT37ImBY&ab_channel=PeterWhidden
+Inspired by Peter Whidden's YouTube video: 
+https://www.youtube.com/watch?v=DcYLT37ImBY&ab_channel=PeterWhidden
 
 # Requirements
 - Python3
 - Pokemon Red ROM
 
-
 # Usage
-To run this project, it is recommended to use a virtual environment. The official documentation for doing this is [here](https://docs.python.org/3/library/venv.html).
+It is recommended to use a Python virtual environment. Official documentation is [here](https://docs.python.org/3/library/venv.html).
 
 Once the Python virtual environment has been activated, run the following commands:
 
