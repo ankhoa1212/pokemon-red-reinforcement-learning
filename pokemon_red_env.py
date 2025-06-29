@@ -5,6 +5,7 @@ from pyboy.utils import WindowEvent
 from PIL import Image
 from image_checker import stitch_images, compare_images
 import uuid
+import os
 
 class PokemonRedEnv(Env):
 
@@ -96,6 +97,8 @@ class PokemonRedEnv(Env):
                 difference = 1 - compare_images(np.array(img), np.array(self.memory[-1]))
                 self._fitness += difference
                 if difference > 0.5:  # threshold for saving images
+                    if not os.path.exists(f"{self.image_directory}{self.id}"):
+                        os.makedirs(f"{self.image_directory}{self.id}")
                     img.save(f"{self.image_directory}{self.id}/{self.steps}.png")
                     self.memory.append(img)
         return self._fitness-self._previous_fitness
