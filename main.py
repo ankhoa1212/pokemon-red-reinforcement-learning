@@ -9,8 +9,8 @@ import sys
 
 IMAGE_DIRECTORY = 'images/'  # directory to images
 CHECKPOINT_DIRECTORY = 'checkpoints/'  # directory to save checkpoints
-SCREENSHOT_FILENAME = 'screenshot.png'
-MASTER_MAP_FILENAME = 'master_map.png'  # master map of all areas
+SCREENSHOT_FILENAME = 'screenshot.png' # screenshot filename
+MASTER_MAP_FILENAME = 'master_map.png'  # master map filename
 
 NUM_CPU = os.cpu_count() if os.cpu_count() is not None else 1
 
