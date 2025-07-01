@@ -6,3 +6,5 @@ stable-baselines3
 # below are for visualization
 tqdm
 rich
+# below are for logging with tensorboard
+tensorboard
