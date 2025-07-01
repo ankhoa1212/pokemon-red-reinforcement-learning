@@ -17,7 +17,7 @@ class TensorBoardCallback(BaseCallback):
             self.writer = SummaryWriter(log_dir=Path(self.log_dir))
 
     def _on_step(self) -> bool:
-        if self.training_env.truncated_check():
+        if self.training_env.env_method("truncated_check", indices=[0])[0]:
             info = self.training_env.get_attr("info")
             for key, value in info.items():
                 self.logger.record(f"env_stats/{key}", value)
