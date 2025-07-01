@@ -8,12 +8,13 @@ from enum import Enum
 from typing import Optional
 from pathlib import Path
 
-IMAGE_DIRECTORY = 'images/'  # directory to images
-CHECKPOINT_DIRECTORY = 'checkpoints/'  # directory to save checkpoints
-LOG_DIRECTORY = 'logs/'  # directory to save logs
-MODEL_DIRECTORY = 'models/'  # directory to save models
+IMAGE_DIR = 'images/'             # directory to images
+CHECKPOINT_DIR = 'checkpoints/'   # directory to save checkpoints
+LOG_DIR = 'logs/'                 # directory to save logs
+MODEL_DIR = 'models/'             # directory to save models
+ENV_DATA_DIR = 'env_data/'        # directory to save environment data
 
-SCREENSHOT_FILENAME = 'screenshot.png' # screenshot filename
+SCREENSHOT_FILENAME = 'screenshot.png'  # screenshot filename
 MASTER_MAP_FILENAME = 'master_map.png'  # master map filename
 
 num_cpu = 1  # Number of CPU cores to use, set to 1 for testing
@@ -28,12 +29,13 @@ def test(episode_length: Optional[int], run_mode=RunMode.MANUAL, debug=False):
         "game_path": "pokemon_red.gb",
         "debug": False,
         "frame_rate": 24,
-        "map": IMAGE_DIRECTORY + MASTER_MAP_FILENAME,
+        "map": IMAGE_DIR + MASTER_MAP_FILENAME,
         "output_shape": (144, 160),
         "max_steps": episode_length,
-        "image_directory": IMAGE_DIRECTORY,
+        "image_directory": IMAGE_DIR,
         "view": "SDL2",
-        "env_data_path": "env_data/",
+        "env_data_directory": ENV_DATA_DIR,
+        "start_state_path": "start_states/fast_off_set_start.state",
     }
     if run_mode == RunMode.MANUAL:
         from pyboy import PyBoy
@@ -47,7 +49,7 @@ def test(episode_length: Optional[int], run_mode=RunMode.MANUAL, debug=False):
         env = create_env(env_settings)
         print("Running by loading from file.")
         latest_checkpoint = None
-        checkpoint_files = glob.glob(os.path.join(CHECKPOINT_DIRECTORY, 'trainer_*.zip'))
+        checkpoint_files = glob.glob(os.path.join(CHECKPOINT_DIR, 'trainer_*.zip'))
         if checkpoint_files:
             latest_checkpoint = max(checkpoint_files, key=os.path.getctime)
             print(f"Loading model from checkpoint: {latest_checkpoint}")
@@ -60,9 +62,9 @@ def test(episode_length: Optional[int], run_mode=RunMode.MANUAL, debug=False):
     elif run_mode == RunMode.TRAIN_FROM_SCRATCH:
         env = create_env(env_settings)
         print("Training from scratch.")
-        model = PPO("MultiInputPolicy", env, n_steps=episode_length, batch_size=2, n_epochs=1, tensorboard_log=LOG_DIRECTORY, verbose=1, device='cpu')  # initialize PPO model
+        model = PPO("MultiInputPolicy", env, n_steps=episode_length, batch_size=2, n_epochs=1, tensorboard_log=LOG_DIR, verbose=1, device='cpu')  # initialize PPO model
         model.learn(total_timesteps=episode_length*num_cpu*5, callback=callbacks, tb_log_name="trainer_ppo", progress_bar=True)
-        model.save(os.path.join(MODEL_DIRECTORY, 'trainer_ppo_model.zip'))
+        model.save(os.path.join(MODEL_DIR, 'trainer_ppo_model.zip'))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test PPO agent on Pokemon Red environment.")
