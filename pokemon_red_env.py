@@ -5,26 +5,31 @@ from pyboy.utils import WindowEvent
 from PIL import Image
 from image_checker import stitch_images, compare_images
 import uuid
-import os
+import pandas as pd
+from pathlib import Path
+from copy import deepcopy
 
 class PokemonRedEnv(Env):
 
     def __init__(self, settings=None):
         super().__init__()
         self.game_path = settings["game_path"]
+        self.start_state_path = settings["start_state_path"]
+        self.image_directory = settings["image_directory"]
+        self.env_data_directory = settings["env_data_directory"]
+        self.id = uuid.uuid4()
+        self.debug = settings["debug"]
+        self.view = settings["view"]
+        self.frame_rate = settings["frame_rate"]
+        self.frames_to_track = 1
+        self.map = np.array(Image.open(fp=settings["map"]).convert("L"))
+        self.steps = 0
+        self.max_steps = settings["max_steps"]
+        self.memory = []
+        self.info = []
         self._fitness=0
         self._previous_fitness=0
-        self.debug = settings["debug"]
-        self.frame_rate = settings["frame_rate"]
-        self.map = np.array(Image.open(fp=settings["map"]).convert("L"))
-        self.max_steps = settings["max_steps"]
         self.output_shape = settings["output_shape"]
-        self.image_directory = settings["image_directory"]
-        self.view = settings.get("view", "null")
-        self.id = uuid.uuid4()
-        self.memory = []
-        self.steps = 0
-        self.frames_to_track = 1
 
         self.actions = [            
             WindowEvent.PRESS_ARROW_DOWN,
@@ -52,23 +57,41 @@ class PokemonRedEnv(Env):
             "last_actions": spaces.MultiDiscrete([len(self.actions)] * self.frames_to_track)
         })
 
-        self.pyboy = PyBoy(self.game_path)
+        self.pyboy = PyBoy(self.game_path, window=self.view, debug=self.debug, sound_emulated=False)
         if not self.debug:
             self.pyboy.set_emulation_speed(0)
-        self.reset()
 
 
     def step(self, action):
-        self.do_action(action)
+        if action is not None:
+            self.do_action(action)
         reward=self._calculate_fitness()
-        done = self.steps >= self.max_steps
         observation=self._get_obs()
         self.steps += 1
-        print(f"Step: {self.steps}/{self.max_steps}, Fitness: {self._fitness}, Reward: {reward}, Id: {self.id}")
+        if self.debug:
+            print(f"Step: {self.steps}/{self.max_steps}, Fitness: {self._fitness}, Reward: {reward}, Id: {self.id}")
+        info = {
+            "steps": deepcopy(self.steps),
+            "fitness": deepcopy(self._fitness),
+            "reward": deepcopy(reward),
+            "action": deepcopy(int(action)) if action is not None else None,
+            "last_actions": deepcopy(self.last_actions),
+        }
+        self.info.append(info)
 
-        info = {}
-        truncated = False
-        return observation, reward, done, truncated, info
+        terminated = False
+        truncated = self.truncated_check()
+        if terminated or truncated:
+            pass
+            # pd.DataFrame(self.info).to_csv(
+            #     self.env_data_directory / Path(f'trainer_stats_{self.id}.csv.gz'), compression='gzip', mode='a')
+        return observation, reward, terminated, truncated, info
+
+    def truncated_check(self):
+        return self.steps >= self.max_steps
+
+    def pre_truncated_check(self):
+        return self.steps >= self.max_steps - 1
 
     def update_actions(self, action):
         self.last_actions = np.roll(self.last_actions, shift=1)
@@ -92,25 +115,34 @@ class PokemonRedEnv(Env):
         self._previous_fitness=self._fitness
         with self.pyboy.screen.image as img:
             if not self.memory:
-                self.memory.append(img)
+                # self.memory.append(img)
+                pass
             else:
-                difference = 1 - compare_images(np.array(img), np.array(self.memory[-1]))
+                # TODO calculate fitness
+                # difference = 1 - compare_images(np.array(img), np.array(self.memory[-1]))
+                difference = 1
                 self._fitness += difference
-                if difference > 0.5:  # threshold for saving images
-                    if not os.path.exists(f"{self.image_directory}{self.id}"):
-                        os.makedirs(f"{self.image_directory}{self.id}")
-                    img.save(f"{self.image_directory}{self.id}/{self.steps}.png")
-                    self.memory.append(img)
+                # if difference > 0.5:  # threshold for saving images
+                #     if not os.path.exists(f"{self.image_directory}{self.id}"):
+                #         os.makedirs(f"{self.image_directory}{self.id}")
+                #     img.save(f"{self.image_directory}{self.id}/{self.steps}.png")
+                #     self.memory.append(img)
         return self._fitness-self._previous_fitness
 
     def reset(self, seed=None, **kwargs):
         super().reset(seed=seed, **kwargs)
-        self.pyboy = PyBoy(self.game_path, window=self.view, debug=self.debug, sound_emulated=False)
+
+        initial_state = self.start_state_path
+        with open(initial_state, "rb") as f:
+            self.pyboy.load_state(f)
 
         self._fitness=0
         self._previous_fitness=0
 
         self.last_actions = np.zeros((self.frames_to_track,), dtype=np.uint8)
+        self.info = []
+        self.memory = []
+        self.steps = 0
 
         return self._get_obs(), {}
 
@@ -119,3 +151,8 @@ class PokemonRedEnv(Env):
 
     def close(self):
         self.pyboy.stop()
+
+    def save_state(self, filename):
+        with open(f"{filename}", "wb") as f:
+            f.seek(0)
+            self.pyboy.save_state(f)
