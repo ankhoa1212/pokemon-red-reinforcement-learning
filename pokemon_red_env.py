@@ -13,11 +13,12 @@ class PokemonRedEnv(Env):
 
     def __init__(self, settings=None):
         super().__init__()
+        self.id = uuid.uuid4()
         self.game_path = settings["game_path"]
         self.start_state_path = settings["start_state_path"]
         self.image_directory = settings["image_directory"]
         self.env_data_directory = settings["env_data_directory"]
-        self.id = uuid.uuid4()
+        self.save_info = settings["save_info"]
         self.debug = settings["debug"]
         self.view = settings["view"]
         self.frame_rate = settings["frame_rate"]
@@ -27,9 +28,11 @@ class PokemonRedEnv(Env):
         self.max_steps = settings["max_steps"]
         self.memory = []
         self.info = []
-        self._fitness=0
-        self._previous_fitness=0
+        self._fitness = 0
+        self._previous_fitness = 0
         self.output_shape = settings["output_shape"]
+
+        Path(self.env_data_directory).mkdir(exist_ok=True)
 
         self.actions = [            
             WindowEvent.PRESS_ARROW_DOWN,
@@ -57,7 +60,7 @@ class PokemonRedEnv(Env):
             "last_actions": spaces.MultiDiscrete([len(self.actions)] * self.frames_to_track)
         })
 
-        self.pyboy = PyBoy(self.game_path, window=self.view, debug=self.debug, sound_emulated=False)
+        self.pyboy = PyBoy(self.game_path, window=self.view, sound_emulated=False)
         if not self.debug:
             self.pyboy.set_emulation_speed(0)
 
@@ -81,10 +84,9 @@ class PokemonRedEnv(Env):
 
         terminated = False
         truncated = self.truncated_check()
-        if terminated or truncated:
-            pass
-            # pd.DataFrame(self.info).to_csv(
-            #     self.env_data_directory / Path(f'trainer_stats_{self.id}.csv.gz'), compression='gzip', mode='a')
+        if (terminated or truncated) and self.save_info:
+            pd.DataFrame(self.info).to_csv(
+                self.env_data_directory / Path(f'trainer_info_{self.id}.csv.gz'), compression='gzip', mode='a')
         return observation, reward, terminated, truncated, info
 
     def truncated_check(self):
@@ -118,15 +120,16 @@ class PokemonRedEnv(Env):
                 # self.memory.append(img)
                 pass
             else:
+                pass
                 # TODO calculate fitness
                 # difference = 1 - compare_images(np.array(img), np.array(self.memory[-1]))
-                difference = 1
-                self._fitness += difference
                 # if difference > 0.5:  # threshold for saving images
                 #     if not os.path.exists(f"{self.image_directory}{self.id}"):
                 #         os.makedirs(f"{self.image_directory}{self.id}")
                 #     img.save(f"{self.image_directory}{self.id}/{self.steps}.png")
                 #     self.memory.append(img)
+        difference = 1
+        self._fitness += difference
         return self._fitness-self._previous_fitness
 
     def reset(self, seed=None, **kwargs):
