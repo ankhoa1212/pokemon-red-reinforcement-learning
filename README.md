@@ -31,9 +31,10 @@ python main.py
 
 # Roadmap
 - [x] Create [Gymnasium](https://github.com/Farama-Foundation/Gymnasium) environment for reinforcement learning
+- [ ] Register Gymnasium environment to be able to use ```gym.make()``` ([here](https://gymnasium.farama.org/introduction/create_custom_env/#registering-and-making-the-environment))
 - [x] Implement [PyBoy](https://github.com/Baekalfen/PyBoy) for simulation
 - [x] Track data of runs for evaluation
-- [ ] Save video of agent runs (go [here](https://gymnasium.farama.org/introduction/record_agent/))
+- [ ] Save video of agent runs ([here](https://gymnasium.farama.org/introduction/record_agent/))
 - [x] Add simple exploration reward
 - [x] Add map stitching of current area
 - [ ] Add identification of new areas
