@@ -7,6 +7,8 @@ import argparse
 from enum import Enum
 from typing import Optional
 from pathlib import Path
+import uuid
+import datetime
 
 IMAGE_DIR = 'images/'             # directory to images
 CHECKPOINT_DIR = 'checkpoints/'   # directory to save checkpoints
@@ -25,17 +27,20 @@ class RunMode(Enum):
     TRAIN_FROM_SCRATCH = 3
 
 def test(episode_length: Optional[int], run_mode=RunMode.MANUAL, debug=False):
+    episode_length = 10  # number of steps per episode
+    run_id = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}"  # unique run identifier with timestamp
     env_settings = {
         "game_path": "pokemon_red.gb",
-        "debug": False,
+        "debug": True,
         "frame_rate": 24,
         "map": IMAGE_DIR + MASTER_MAP_FILENAME,
         "output_shape": (144, 160),
         "max_steps": episode_length,
         "image_directory": IMAGE_DIR,
         "view": "SDL2",
-        "env_data_directory": ENV_DATA_DIR,
+        "env_data_directory": ENV_DATA_DIR + run_id + "/",
         "start_state_path": "start_states/fast_off_set_start.state",
+        "save_info": True,
     }
     if run_mode == RunMode.MANUAL:
         from pyboy import PyBoy
