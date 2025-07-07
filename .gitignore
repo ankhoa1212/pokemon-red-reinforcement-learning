@@ -17,3 +17,7 @@ venv/
 
 # Ignore screenshots
 screenshot.png
+
+# Ignore run data folders
+env_data/
+checkpoints/
