@@ -14,9 +14,11 @@ It is recommended to use a Python virtual environment. Official documentation is
 
 Once the Python virtual environment has been activated, run the following commands:
 
-To install requirements: ```pip install -r requirements.txt``` 
+To install requirements:
+```pip install -U -r requirements.txt``` 
 
-To run the program: ```python3 main.py```
+To run the program:
+```python3 main.py```
 
 # Roadmap
 - [x] Create gymnasium environment for reinforcement learning
