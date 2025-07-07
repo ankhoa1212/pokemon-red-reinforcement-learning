@@ -8,6 +8,7 @@ https://www.youtube.com/watch?v=DcYLT37ImBY&ab_channel=PeterWhidden
 # Requirements
 - Python3
 - Pokemon Red ROM
+- Linux
 
 # Usage
 It is recommended to use a Python virtual environment. Official documentation is [here](https://docs.python.org/3/library/venv.html).
