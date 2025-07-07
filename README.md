@@ -30,8 +30,8 @@ python3 main.py
 ```
 
 # Roadmap
-- [x] Create gymnasium environment for reinforcement learning
-- [x] Implement PyBoy for simulation
+- [x] Create [Gymnasium](https://github.com/Farama-Foundation/Gymnasium) environment for reinforcement learning
+- [x] Implement [PyBoy](https://github.com/Baekalfen/PyBoy) for simulation
 - [x] Track data of runs for evaluation
 - [ ] Save video of agent runs
 - [x] Add simple exploration reward
