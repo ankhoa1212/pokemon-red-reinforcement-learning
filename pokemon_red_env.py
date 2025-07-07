@@ -8,6 +8,7 @@ import uuid
 import pandas as pd
 from pathlib import Path
 from copy import deepcopy
+import os
 
 class PokemonRedEnv(Env):
 
@@ -18,6 +19,7 @@ class PokemonRedEnv(Env):
         self.start_state_path = settings["start_state_path"]
         self.image_directory = settings["image_directory"]
         self.env_data_directory = settings["env_data_directory"]
+        self.saved_info_directory = self.env_data_directory + str(self.id) + "/"
         self.save_info = settings["save_info"]
         self.debug = settings["debug"]
         self.view = settings["view"]
@@ -33,6 +35,7 @@ class PokemonRedEnv(Env):
         self.output_shape = settings["output_shape"]
 
         Path(self.env_data_directory).mkdir(exist_ok=True)
+        Path(self.saved_info_directory).mkdir(exist_ok=True)
 
         self.actions = [            
             WindowEvent.PRESS_ARROW_DOWN,
@@ -62,13 +65,13 @@ class PokemonRedEnv(Env):
 
         self.pyboy = PyBoy(self.game_path, window=self.view, sound_emulated=False)
         if not self.debug:
-            self.pyboy.set_emulation_speed(0)
+            self.pyboy.set_emulation_speed(6)
 
 
     def step(self, action):
         if action is not None:
             self.do_action(action)
-        reward=self._calculate_fitness()
+        reward=self.calculate_fitness()
         observation=self._get_obs()
         self.steps += 1
         if self.debug:
@@ -86,7 +89,7 @@ class PokemonRedEnv(Env):
         truncated = self.truncated_check()
         if (terminated or truncated) and self.save_info:
             pd.DataFrame(self.info).to_csv(
-                self.env_data_directory / Path(f'trainer_info_{self.id}.csv.gz'), compression='gzip', mode='a')
+                self.saved_info_directory / Path(f'trainer_info.csv.gz'), compression='gzip', mode='a')
         return observation, reward, terminated, truncated, info
 
     def truncated_check(self):
@@ -113,22 +116,31 @@ class PokemonRedEnv(Env):
                 self.pyboy.send_input(self.release_actions[action])
             self.pyboy.tick()
 
-    def _calculate_fitness(self):
+    def calculate_fitness(self):
         self._previous_fitness=self._fitness
-        with self.pyboy.screen.image as img:
-            if not self.memory:
-                # self.memory.append(img)
-                pass
-            else:
-                pass
-                # TODO calculate fitness
-                # difference = 1 - compare_images(np.array(img), np.array(self.memory[-1]))
-                # if difference > 0.5:  # threshold for saving images
-                #     if not os.path.exists(f"{self.image_directory}{self.id}"):
-                #         os.makedirs(f"{self.image_directory}{self.id}")
-                #     img.save(f"{self.image_directory}{self.id}/{self.steps}.png")
-                #     self.memory.append(img)
-        difference = 1
+        difference = 0
+        img = self._get_obs()["screen"]
+        img = Image.fromarray(img)
+        Path(f"{self.saved_info_directory}{self.image_directory}").mkdir(exist_ok=True)
+        if not self.memory:
+            img.save(f"{self.saved_info_directory}{self.image_directory}{len(self.memory)}.png")
+            self.memory.append(img)
+        else:
+            ind = 0
+            min_difference = 1
+            for i, test_image in enumerate(self.memory):
+                similarity = compare_images(np.array(img), np.array(test_image))
+                test_difference = 1 - similarity
+                if test_difference > difference:
+                    ind = i
+                    difference = test_difference
+                else:
+                    min_difference = min(min_difference, test_difference)
+
+            if difference > 0.8 and min_difference > 0.2:  # threshold for saving images
+                difference = max(0, min(difference, 1))
+                img.save(f"{self.saved_info_directory}{self.image_directory}{len(self.memory)}_{ind}_{difference}.png")
+                self.memory.append(img)
         self._fitness += difference
         return self._fitness-self._previous_fitness
 
