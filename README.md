@@ -1,6 +1,4 @@
-# pokemon-red-reinforcement-learning
-
-# Goal
+# Goals
 - Create a reinforcement learning agent that can play Pokemon Red without any external knowledge
 - Utilize a reward purely based on exploration
 
