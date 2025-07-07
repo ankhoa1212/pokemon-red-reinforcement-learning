@@ -14,7 +14,12 @@ It is recommended to use a Python virtual environment. Official documentation is
 After installing Python, the venv module can be used to create a virtual environment:
 
 ```
-python -m venv
+python3 -m venv venv
+```
+
+To activate the virtual environment on Linux:
+```
+source venv/bin/activate
 ```
 
 Once the Python virtual environment has been activated, run the following commands:
