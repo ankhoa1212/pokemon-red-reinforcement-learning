@@ -1,5 +1,8 @@
 # pokemon-red-reinforcement-learning
-Playing Pokemon Red with Reinforcement Learning techniques. 
+
+# Goal
+- Create a reinforcement learning agent that can play Pokemon Red without any external knowledge
+- Utilize a reward purely based on exploration
 
 Inspired by Peter Whidden's YouTube video: 
 https://www.youtube.com/watch?v=DcYLT37ImBY&ab_channel=PeterWhidden
@@ -16,10 +19,6 @@ Once the Python virtual environment has been activated, run the following comman
 To install requirements: ```pip install -r requirements.txt``` 
 
 To run the program: ```python3 main.py```
-
-# Goal
-- Create a reinforcement learning agent that can play Pokemon Red without any external knowledge
-- Utilize a reward purely based on exploration
 
 # Roadmap
 - [x] Create gymnasium environment for reinforcement learning
