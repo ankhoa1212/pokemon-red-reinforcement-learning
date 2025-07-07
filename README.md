@@ -20,8 +20,6 @@ To activate the virtual environment on Linux:
 ```
 source venv/bin/activate
 ```
-Once the Python virtual environment has been activated, run the following commands:
-
 To install requirements:
 ```
 pip install -U -r requirements.txt
