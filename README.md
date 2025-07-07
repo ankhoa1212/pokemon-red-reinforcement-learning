@@ -19,6 +19,10 @@ To activate the virtual environment on Linux:
 ```
 source venv/bin/activate
 ```
+To deactivate the virtual environment on Linux:
+```
+deactivate
+```
 Once the Python virtual environment has been activated, run the following commands:
 
 To install requirements:
