@@ -8,6 +8,8 @@ from tensorboard_callback import TensorBoardCallback
 import os
 import sys
 import glob
+import uuid
+import datetime
 
 IMAGE_DIR = 'images/'             # directory to images
 CHECKPOINT_DIR = 'checkpoints/'   # directory to save checkpoints
@@ -33,6 +35,7 @@ def create_env(env_settings, env_id=0, debug=False, seed=0):
 
 if __name__ == "__main__":
     episode_length = 10  # number of steps per episode
+    run_id = f"{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}"  # unique run identifier with timestamp
     env_settings = {
         "game_path": "pokemon_red.gb",
         "debug": True,
@@ -42,7 +45,7 @@ if __name__ == "__main__":
         "max_steps": episode_length,
         "image_directory": IMAGE_DIR,
         "view": "SDL2",
-        "env_data_directory": ENV_DATA_DIR,
+        "env_data_directory": ENV_DATA_DIR + run_id + "/",
         "start_state_path": "start_states/fast_off_set_start.state",
         "save_info": True,
     }
