@@ -39,4 +39,4 @@ python main.py
 - [x] Add map stitching of current area
 - [ ] Add identification of new areas
 - [ ] Adjust reward based on exploring map with map stitching
-- [ ] Optimize training (consider cnn for gpu acceleration)
+- [ ] Optimize training (consider cnn policy [here](https://stable-baselines.readthedocs.io/en/master/modules/policies.html#stable_baselines.common.policies.CnnPolicy) for gpu acceleration)
