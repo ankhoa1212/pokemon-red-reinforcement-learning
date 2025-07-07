@@ -14,7 +14,7 @@ https://www.youtube.com/watch?v=DcYLT37ImBY&ab_channel=PeterWhidden
 It is recommended to use a Python virtual environment. Official documentation is [here](https://docs.python.org/3/library/venv.html).
 After installing Python, the venv module can be used to create a virtual environment:
 ```
-python3 -m venv venv
+python -m venv venv
 ```
 To activate the virtual environment on Linux:
 ```
@@ -26,7 +26,7 @@ pip install -U -r requirements.txt
 ``` 
 To run the program:
 ```
-python3 main.py
+python main.py
 ```
 
 # Roadmap
