@@ -38,5 +38,6 @@ python main.py
 - [x] Add simple exploration reward
 - [x] Add map stitching of current area
 - [ ] Add identification of new areas
+  - [ ] Test template matching method
 - [ ] Adjust reward based on exploring map with map stitching and new area identification
 - [ ] Optimize training (consider cnn policy [here](https://stable-baselines.readthedocs.io/en/master/modules/policies.html#stable_baselines.common.policies.CnnPolicy) for gpu acceleration)
