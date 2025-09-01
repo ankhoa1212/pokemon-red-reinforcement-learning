@@ -8,7 +8,7 @@ def compare_images(img1, img2, method="mse", grayscale=True):
     Args:
         img1: First image (NumPy array).
         img2: Second image (NumPy array).
-        method: Image comparison method.
+        method: Image comparison method. Ex: "mse", "template", "correlation", "chi-square", "bhattacharyya"
         grayscale: Whether to convert images to grayscale before comparison.
 
     Returns:
@@ -39,7 +39,7 @@ def compare_images(img1, img2, method="mse", grayscale=True):
         'correlation': cv2.HISTCMP_CORREL,
         'chi-square': cv2.HISTCMP_CHISQR,
         'bhattacharyya': cv2.HISTCMP_BHATTACHARYYA
-        }
+        } 
         hist1 = cv2.calcHist([img1_resized], [0], None, [256], [0, 256])
         hist2 = cv2.calcHist([img2_resized], [0], None, [256], [0, 256])
         cv2.normalize(hist1, hist1)
