@@ -58,14 +58,21 @@ def sync_visit_counts(vec_env, global_counts):
     on the shared baseline.
 
     A distinct Counter copy is set per worker rather than sharing one
-    object across the set_attr call: under DummyVecEnv, all workers run
-    in this same process, so set_attr("visit_counts", merged) with no
-    per-worker copy would hand every worker (and global_counts itself)
-    the same mutable object -- every worker's subsequent local increments
-    would then double-count directly into global_counts, silently
+    object across the broadcast: under DummyVecEnv, all workers run in
+    this same process, so pushing the same mutable object to every
+    worker (and global_counts itself) would let every worker's subsequent
+    local increments double-count directly into global_counts, silently
     inflating visit counts further with every sync. SubprocVecEnv doesn't
-    have this problem (each worker is a separate process, so set_attr's
+    have this problem (each worker is a separate process, so env_method's
     pickling already copies the value), but the fix must hold for both.
+
+    The broadcast uses VecEnv.env_method("set_visit_counts", ...) rather
+    than VecEnv.set_attr("visit_counts", ...): set_attr does a plain
+    setattr on whatever object each VecEnv slot holds, while env_method
+    resolves through Gymnasium's Wrapper.get_wrapper_attr, which reaches
+    the wrapped PokemonRedEnv instance correctly even when a gym.make()
+    wrapper sits in front of it. set_attr would silently shadow the
+    attribute on the outer wrapper instead.
 
     Args:
         vec_env: a VecEnv-like object (DummyVecEnv, SubprocVecEnv, or a
@@ -82,7 +89,7 @@ def sync_visit_counts(vec_env, global_counts):
         return global_counts
     merged = merge_visit_count_deltas(global_counts, deltas)
     for i in range(vec_env.num_envs):
-        vec_env.set_attr("visit_counts", Counter(merged), indices=[i])
+        vec_env.env_method("set_visit_counts", Counter(merged), indices=[i])
     return merged
 
 

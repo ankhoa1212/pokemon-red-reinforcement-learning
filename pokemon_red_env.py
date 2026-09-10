@@ -184,6 +184,25 @@ class PokemonRedEnv(Env):
         self._visit_count_delta = Counter()
         return delta
 
+    def set_visit_counts(self, counts):
+        """
+        Replaces this worker's local visit-count table.
+
+        This is the "push" half of the cross-worker visit-count merge (see
+        tensorboard_callback.sync_visit_counts): the main process calls
+        this via VecEnv.env_method on every worker to broadcast the merged
+        global table. env_method resolves through Gymnasium's
+        Wrapper.get_wrapper_attr, which reaches this instance even when a
+        gym.make() wrapper sits in front of it -- unlike VecEnv.set_attr's
+        plain setattr, which would only shadow an attribute on the outer
+        wrapper.
+
+        Args:
+            counts: the visit-count table to adopt as this worker's local
+                table.
+        """
+        self.visit_counts = counts
+
     def render(self):
         return self.pyboy.screen.image
 

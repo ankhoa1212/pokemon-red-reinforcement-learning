@@ -36,6 +36,9 @@ class StubCountEnv(gym.Env):
         self._visit_count_delta = Counter()
         return delta
 
+    def set_visit_counts(self, counts):
+        self.visit_counts = counts
+
     def reset(self, *, seed=None, options=None):
         super().reset(seed=seed)
         return np.zeros(1, dtype=np.float32), {}
@@ -46,6 +49,13 @@ class StubCountEnv(gym.Env):
 
 def make_stub_env():
     return StubCountEnv()
+
+
+def make_wrapped_stub_env():
+    """A StubCountEnv wrapped the way gym.make() wraps PokemonRedEnv, to
+    exercise the env_method write path against a real Gymnasium wrapper
+    rather than the bare env."""
+    return gym.Wrapper(StubCountEnv())
 
 
 # --- Happy path: pure merge logic ------------------------------------------
@@ -167,6 +177,34 @@ def test_sync_with_one_worker_delta_empty_only_adds_the_others():
         local_tables = vec_env.get_attr("visit_counts")
         assert local_tables[0] == global_counts
         assert local_tables[1] == global_counts
+    finally:
+        vec_env.close()
+
+
+# --- Integration: wrapped env (gym.make()-style wrapper chain) ---------
+
+def test_sync_broadcast_reaches_inner_env_through_a_wrapper():
+    """
+    Regression test: VecEnv.set_attr does a plain setattr on whatever
+    object each VecEnv slot holds. Once create_env returns a gym.make()-
+    wrapped env, that would set visit_counts on the outer wrapper instead
+    of the inner StubCountEnv, silently breaking the merge. env_method
+    resolves through Wrapper.get_wrapper_attr and must reach the inner
+    env correctly.
+    """
+    vec_env = DummyVecEnv([make_wrapped_stub_env, make_wrapped_stub_env])
+    try:
+        vec_env.env_method("increment", "state_a", indices=[0])
+
+        global_counts = sync_visit_counts(vec_env, {})
+
+        assert global_counts == {"state_a": 1}
+        # Read the inner env's visit_counts directly, bypassing
+        # get_wrapper_attr, to prove the broadcast landed on the wrapped
+        # instance itself and not merely somewhere reachable via attribute
+        # lookup on the wrapper.
+        for wrapped_env in vec_env.envs:
+            assert wrapped_env.unwrapped.visit_counts == global_counts
     finally:
         vec_env.close()
 
