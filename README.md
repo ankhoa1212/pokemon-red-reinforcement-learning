@@ -31,13 +31,14 @@ python main.py
 
 # Roadmap
 - [x] Create [Gymnasium](https://github.com/Farama-Foundation/Gymnasium) environment for reinforcement learning
-- [ ] Register Gymnasium environment to be able to use ```gym.make()``` ([here](https://gymnasium.farama.org/introduction/create_custom_env/#registering-and-making-the-environment))
 - [x] Implement [PyBoy](https://github.com/Baekalfen/PyBoy) for simulation
 - [x] Track data of runs for evaluation
-- [ ] Save video of agent runs ([here](https://gymnasium.farama.org/introduction/record_agent/))
 - [x] Add persistent, count-based exploration reward (shared across parallel training workers)
+- [ ] Tune exploration-reward hash granularity (downsample resolution, quantization levels) based on observed training behavior
+- [ ] Register Gymnasium environment to be able to use ```gym.make()``` ([here](https://gymnasium.farama.org/introduction/create_custom_env/#registering-and-making-the-environment))
 - [ ] Add map stitching of current area (script exists in `stitching/` but isn't wired into the environment or reward)
 - [ ] Add identification of new areas
   - [ ] Test template matching method
 - [ ] Adjust reward based on exploring map with map stitching and new area identification
+- [ ] Save video of agent runs ([here](https://gymnasium.farama.org/introduction/record_agent/))
 - [ ] Optimize training (consider cnn policy [here](https://stable-baselines.readthedocs.io/en/master/modules/policies.html#stable_baselines.common.policies.CnnPolicy) for gpu acceleration)
