@@ -1,8 +1,9 @@
-from gc import callbacks
 from main import create_env
 import os
 import glob
 from stable_baselines3 import PPO
+from stable_baselines3.common.callbacks import CallbackList, CheckpointCallback
+from tensorboard_callback import TensorBoardCallback
 import argparse
 from enum import Enum
 from typing import Optional
@@ -72,6 +73,15 @@ def test(episode_length: Optional[int], run_mode=RunMode.MANUAL, debug=False):
         env = create_env(env_settings)
         print("Training from scratch.")
         model = PPO("MultiInputPolicy", env, n_steps=episode_length, batch_size=2, n_epochs=1, tensorboard_log=LOG_DIR, verbose=1, device='cpu')  # initialize PPO model
+        checkpoint_callback = CheckpointCallback(
+            save_freq=episode_length // 2,
+            save_path=CHECKPOINT_DIR,
+            name_prefix="trainer",
+            verbose=1,
+        )
+        callbacks = CallbackList(
+            [checkpoint_callback, TensorBoardCallback(CHECKPOINT_DIR, verbose=1)]
+        )
         model.learn(total_timesteps=episode_length*num_cpu*5, callback=callbacks, tb_log_name="trainer_ppo", progress_bar=True)
         model.save(os.path.join(MODEL_DIR, 'trainer_ppo_model.zip'))
 
