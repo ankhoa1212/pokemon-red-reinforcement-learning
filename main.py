@@ -4,14 +4,12 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import (
     CallbackList,
     CheckpointCallback,
-    EvalCallback,
 )
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from tensorboard_callback import TensorBoardCallback
+from copy import deepcopy
 import os
-import sys
-import glob
 import uuid
 import datetime
 
@@ -26,10 +24,21 @@ MASTER_MAP_FILENAME = "master_map.png"  # master map filename
 
 NUM_CPU = os.cpu_count() if os.cpu_count() is not None else 1
 
+# How many rollouts to wait between cross-worker visit-count syncs. Named
+# and tunable independently of PPO's n_steps (see TensorBoardCallback).
+SYNC_INTERVAL = 1
+
 
 def create_env(env_settings, env_id=0, debug=False, seed=0):
     set_random_seed(seed)
-    env = PokemonRedEnv(settings=env_settings)
+    # Give this environment instance its own deep copy of env_settings,
+    # rather than a shared reference -- under SubprocVecEnv each worker
+    # already gets an independent copy via pickling, and copying here keeps
+    # DummyVecEnv/in-process construction consistent with that: no two
+    # environment instances mutate the same visit_counts dict by accident
+    # before the cross-worker merge is what reconciles their state.
+    settings = deepcopy(env_settings)
+    env = PokemonRedEnv(settings=settings)
     env.reset(seed + env_id)
     if debug:
         try:
@@ -54,6 +63,10 @@ if __name__ == "__main__":
         "env_data_directory": ENV_DATA_DIR + run_id + "/",
         "start_state_path": "start_states/fast_off_set_start.state",
         "save_info": True,
+        # Seed value for each worker's local visit-count table. This is the
+        # hook a future checkpoint-resume feature would populate with a
+        # restored table; today there is no such feature, so it is empty.
+        "initial_visit_counts": {},
     }
 
     try:
@@ -76,7 +89,12 @@ if __name__ == "__main__":
     # eval_callback = EvalCallback(environments, best_model_save_path=MODEL_DIR)
 
     callbacks = CallbackList(
-        [checkpoint_callback, TensorBoardCallback(CHECKPOINT_DIR, verbose=1)]
+        [
+            checkpoint_callback,
+            TensorBoardCallback(
+                CHECKPOINT_DIR, verbose=1, sync_interval=SYNC_INTERVAL
+            ),
+        ]
     )
 
     # latest_checkpoint = None

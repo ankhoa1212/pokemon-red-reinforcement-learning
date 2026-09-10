@@ -1,14 +1,15 @@
+from collections import Counter
 from gymnasium import spaces, Env
 import numpy as np
 from pyboy import PyBoy
 from pyboy.utils import WindowEvent
 from PIL import Image
-from image_checker import stitch_images, compare_images
+from image_checker import hash_screen_state
 import uuid
 import pandas as pd
 from pathlib import Path
 from copy import deepcopy
-import os
+from math import sqrt
 
 class PokemonRedEnv(Env):
 
@@ -28,7 +29,11 @@ class PokemonRedEnv(Env):
         self.map = np.array(Image.open(fp=settings["map"]).convert("L"))
         self.steps = 0
         self.max_steps = settings["max_steps"]
-        self.memory = []
+        self.visit_counts = Counter(settings.get("initial_visit_counts", {}))
+        # Counts incremented locally since the last cross-worker sync (see
+        # tensorboard_callback.sync_visit_counts). Cleared by
+        # pop_visit_count_delta() each time this worker's delta is pulled.
+        self._visit_count_delta = Counter()
         self.info = []
         self._fitness = 0
         self._previous_fitness = 0
@@ -89,7 +94,7 @@ class PokemonRedEnv(Env):
         truncated = self.truncated_check()
         if (terminated or truncated) and self.save_info:
             pd.DataFrame(self.info).to_csv(
-                self.saved_info_directory / Path(f'trainer_info.csv.gz'), compression='gzip', mode='a')
+                self.saved_info_directory / Path('trainer_info.csv.gz'), compression='gzip', mode='a')
         return observation, reward, terminated, truncated, info
 
     def truncated_check(self):
@@ -118,30 +123,20 @@ class PokemonRedEnv(Env):
 
     def calculate_fitness(self):
         self._previous_fitness=self._fitness
-        difference = 0
-        img = self._get_obs()["screen"]
-        img = Image.fromarray(img)
-        Path(f"{self.saved_info_directory}{self.image_directory}").mkdir(exist_ok=True)
-        if not self.memory:
-            img.save(f"{self.saved_info_directory}{self.image_directory}{len(self.memory)}.png")
-            self.memory.append(img)
-        else:
-            ind = 0
-            min_difference = 1
-            for i, test_image in enumerate(self.memory):
-                similarity = compare_images(np.array(img), np.array(test_image))
-                test_difference = 1 - similarity
-                if test_difference > difference:
-                    ind = i
-                    difference = test_difference
-                else:
-                    min_difference = min(min_difference, test_difference)
+        screen = self._get_obs()["screen"]
+        state_hash = hash_screen_state(screen)
+        self.visit_counts[state_hash] += 1
+        self._visit_count_delta[state_hash] += 1
+        visit_count = self.visit_counts[state_hash]
+        reward = 1 / sqrt(visit_count)
 
-            if difference > 0.8 and min_difference > 0.2:  # threshold for saving images
-                difference = max(0, min(difference, 1))
-                img.save(f"{self.saved_info_directory}{self.image_directory}{len(self.memory)}_{ind}_{difference}.png")
-                self.memory.append(img)
-        self._fitness += difference
+        if visit_count == 1:
+            img = Image.fromarray(screen)
+            image_dir = Path(self.saved_info_directory) / self.image_directory
+            image_dir.mkdir(exist_ok=True)
+            img.save(image_dir / f"{state_hash.hex()}.png")
+
+        self._fitness += reward
         return self._fitness-self._previous_fitness
 
     def reset(self, seed=None, **kwargs):
@@ -156,10 +151,29 @@ class PokemonRedEnv(Env):
 
         self.last_actions = np.zeros((self.frames_to_track,), dtype=np.uint8)
         self.info = []
-        self.memory = []
         self.steps = 0
 
         return self._get_obs(), {}
+
+    def pop_visit_count_delta(self):
+        """
+        Returns the visit counts incremented locally since the last call to
+        this method, then clears the local delta tracker.
+
+        This is the "pull" half of the cross-worker visit-count merge
+        (see tensorboard_callback.sync_visit_counts): the main process
+        calls this via VecEnv.env_method on every worker to collect what
+        each worker has newly observed since its last sync, without
+        needing to transfer that worker's entire (unboundedly growing)
+        local table.
+
+        Returns:
+            A dict mapping state hash -> count incremented since the last
+            pop, i.e. this worker's delta.
+        """
+        delta = self._visit_count_delta
+        self._visit_count_delta = Counter()
+        return delta
 
     def render(self):
         return self.pyboy.screen.image
