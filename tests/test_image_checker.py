@@ -23,7 +23,7 @@ def test_same_frame_hashes_to_same_key():
 
 
 def test_small_animation_noise_does_not_change_key():
-    base_value = 150  # mid-bucket at the default QUANTIZATION_LEVELS (bucket 150 // (256 // QUANTIZATION_LEVELS))
+    base_value = 150  # mid-bucket at the default granularity (150 * QUANTIZATION_LEVELS // 256 == 4)
     frame_a = make_frame(base_value)
     frame_b = frame_a.copy()
 
