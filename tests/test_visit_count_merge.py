@@ -97,6 +97,32 @@ def test_sync_with_every_delta_empty_skips_broadcast():
         vec_env.close()
 
 
+def test_sync_does_not_alias_the_same_table_across_dummy_workers_and_global():
+    """
+    Regression test: under DummyVecEnv, all workers share one process, so
+    a naive set_attr("visit_counts", merged) with no per-worker copy would
+    hand every worker (and global_counts itself) the exact same mutable
+    object. A worker's own local increments would then double-count
+    directly into that shared object, so a second sync round would report
+    inflated counts instead of the true total.
+    """
+    vec_env = DummyVecEnv([make_stub_env, make_stub_env])
+    try:
+        vec_env.env_method("increment", "X", indices=[0])
+        global_counts = sync_visit_counts(vec_env, {})
+
+        vec_env.env_method("increment", "X", indices=[0])
+        global_counts = sync_visit_counts(vec_env, global_counts)
+
+        assert global_counts == {"X": 2}
+
+        local_tables = vec_env.get_attr("visit_counts")
+        assert local_tables[0] is not local_tables[1]
+        assert local_tables[0] is not global_counts
+    finally:
+        vec_env.close()
+
+
 # --- Integration: DummyVecEnv (in-process, all-workers scope) ----------
 
 def test_sync_pulls_from_and_broadcasts_to_every_dummy_worker():

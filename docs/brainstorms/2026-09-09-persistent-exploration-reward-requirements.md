@@ -11,7 +11,7 @@ Replace the exploration reward's frame-comparison mechanism with a persistent, c
 
 ## Problem Frame
 
-The current reward in `pokemon_red_env.py`'s `calculate_fitness` compares each new frame against every frame stored in `self.memory` via pairwise MSE, and `self.memory` is rebuilt from empty on every `reset()`. Two consequences follow: the agent gets full novelty reward for revisiting a state it has already seen in a prior episode, and the comparison cost grows linearly with the number of distinct states seen, which does not scale toward the project's actual goal — exploring the game's full, finite state space until it is complete.
+The current reward in `pokemon_red_env.py`'s `calculate_fitness` compares each new frame against every frame stored in `self.memory` via pairwise MSE, and `self.memory` is rebuilt from empty on every `reset()`. Two consequences follow: the agent gets full novelty reward for revisiting a state it has already seen in a prior episode, and the comparison cost grows linearly with the number of distinct states seen, which does not scale toward the project's actual goal - exploring the game's full, finite state space until it is complete.
 
 The project's stated design thesis is that games have a finite, enumerable set of states, and full exploration of that set corresponds to completing the game. A reward mechanism that forgets what it has already found on every episode boundary cannot embody that thesis, regardless of how well it behaves within a single episode.
 
@@ -33,13 +33,13 @@ The project's stated design thesis is that games have a finite, enumerable set o
 ## Scope Boundaries
 
 **Deferred for later:**
-- Random Network Distillation (RND) as a learned, graded novelty signal — revisit only if count-based hashing's collision or noise behavior proves to be a real ceiling.
+- Random Network Distillation (RND) as a learned, graded novelty signal - revisit only if count-based hashing's collision or noise behavior proves to be a real ceiling.
 - A persistent approximate-nearest-neighbor index over frame embeddings.
 - Go-Explore's "return to a promising state, then explore from it" step. This project already has save-state infrastructure (`start_states/`, `PokemonRedEnv.save_state`) that could support it, but it is out of scope until persistent counting itself is validated.
 
 **Outside this feature:**
-- Any reward component derived from emulator memory or game-specific state (badges, party levels, map IDs, event flags) — rejected outright, not just deferred, to keep the mechanism generalized across games.
-- The existing map-stitching code (`stitching/stitch.py`) — unrelated to this change and untouched by it.
+- Any reward component derived from emulator memory or game-specific state (badges, party levels, map IDs, event flags) - rejected outright, not just deferred, to keep the mechanism generalized across games.
+- The existing map-stitching code (`stitching/stitch.py`) - unrelated to this change and untouched by it.
 
 ## Dependencies / Assumptions
 
@@ -55,10 +55,10 @@ The project's stated design thesis is that games have a finite, enumerable set o
 
 ## Sources / Research
 
-- [Go-Explore: a New Approach for Hard-Exploration Problems](https://arxiv.org/abs/1901.10995) (Ecoffet et al., 2019) — the direct precedent for this doc's mechanism: an archive of visited state "cells," each defined by a downsampled visual observation, used to drive exploration toward uncovered states. State of the art on Montezuma's Revenge and Pitfall.
-- [#Exploration: A Study of Count-Based Exploration for Deep Reinforcement Learning](https://arxiv.org/abs/1611.04717) (Tang et al., 2017) — establishes that simple hash-based counting is competitive with more complex methods, and that hash granularity is the main design lever for quality.
-- [Exploration by Random Network Distillation](https://arxiv.org/abs/1810.12894) (Burda et al., 2018) — the fallback approach if hashing proves insufficient; first method to exceed average human performance on Montezuma's Revenge using only pixel input.
-- [Peter Whidden's Pokemon Red RL project](https://qlawk.medium.com/how-one-youtuber-trained-ai-to-play-video-games-with-reinforcement-learning-f37ba07133a4) — this repository's stated inspiration. Documents the exact failure mode raw pixel-novelty reward can produce (the agent fixating on animated water tiles), which motivates R4's need for a robust, not naive, notion of screen-state identity.
-- [Stable-Baselines3: Vectorized Environments](https://stable-baselines.readthedocs.io/en/master/guide/vec_envs.html) — guidance behind the Key Decision confirming `SubprocVecEnv` as the correct architecture for this project's CPU-bound PyBoy environments.
-- `pokemon_red_env.py` (`calculate_fitness`, `self.memory`) — the current implementation being replaced.
-- `main.py` (`NUM_CPU`, `SubprocVecEnv`/`DummyVecEnv`) — the parallel training setup this reward mechanism must integrate with.
+- [Go-Explore: a New Approach for Hard-Exploration Problems](https://arxiv.org/abs/1901.10995) (Ecoffet et al., 2019) - the direct precedent for this doc's mechanism: an archive of visited state "cells," each defined by a downsampled visual observation, used to drive exploration toward uncovered states. State of the art on Montezuma's Revenge and Pitfall.
+- [#Exploration: A Study of Count-Based Exploration for Deep Reinforcement Learning](https://arxiv.org/abs/1611.04717) (Tang et al., 2017) - establishes that simple hash-based counting is competitive with more complex methods, and that hash granularity is the main design lever for quality.
+- [Exploration by Random Network Distillation](https://arxiv.org/abs/1810.12894) (Burda et al., 2018) - the fallback approach if hashing proves insufficient; first method to exceed average human performance on Montezuma's Revenge using only pixel input.
+- [Peter Whidden's Pokemon Red RL project](https://qlawk.medium.com/how-one-youtuber-trained-ai-to-play-video-games-with-reinforcement-learning-f37ba07133a4) - this repository's stated inspiration. Documents the exact failure mode raw pixel-novelty reward can produce (the agent fixating on animated water tiles), which motivates R4's need for a robust, not naive, notion of screen-state identity.
+- [Stable-Baselines3: Vectorized Environments](https://stable-baselines.readthedocs.io/en/master/guide/vec_envs.html) - guidance behind the Key Decision confirming `SubprocVecEnv` as the correct architecture for this project's CPU-bound PyBoy environments.
+- `pokemon_red_env.py` (`calculate_fitness`, `self.memory`) - the current implementation being replaced.
+- `main.py` (`NUM_CPU`, `SubprocVecEnv`/`DummyVecEnv`) - the parallel training setup this reward mechanism must integrate with.

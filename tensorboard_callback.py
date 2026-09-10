@@ -52,10 +52,20 @@ def sync_visit_counts(vec_env, global_counts):
     full-table set_attr broadcast are skipped -- that broadcast cost grows
     with the number of distinct states found so far, and paying it when
     nothing changed is pure waste. Otherwise, merges the deltas into
-    global_counts with merge_visit_count_deltas, then broadcasts the
-    resulting global table back to every worker via
+    global_counts with merge_visit_count_deltas, then broadcasts a copy of
+    the resulting global table to every worker via
     set_attr("visit_counts", ...) so each worker's local table converges
     on the shared baseline.
+
+    A distinct Counter copy is set per worker rather than sharing one
+    object across the set_attr call: under DummyVecEnv, all workers run
+    in this same process, so set_attr("visit_counts", merged) with no
+    per-worker copy would hand every worker (and global_counts itself)
+    the same mutable object -- every worker's subsequent local increments
+    would then double-count directly into global_counts, silently
+    inflating visit counts further with every sync. SubprocVecEnv doesn't
+    have this problem (each worker is a separate process, so set_attr's
+    pickling already copies the value), but the fix must hold for both.
 
     Args:
         vec_env: a VecEnv-like object (DummyVecEnv, SubprocVecEnv, or a
@@ -64,13 +74,15 @@ def sync_visit_counts(vec_env, global_counts):
 
     Returns:
         The updated global visit-count table (also pushed to every
-        worker, unless no worker had anything new to report).
+        worker, unless no worker had anything new to report). Never the
+        same object as any worker's local table.
     """
     deltas = vec_env.env_method("pop_visit_count_delta")
     if not any(deltas):
         return global_counts
     merged = merge_visit_count_deltas(global_counts, deltas)
-    vec_env.set_attr("visit_counts", merged)
+    for i in range(vec_env.num_envs):
+        vec_env.set_attr("visit_counts", Counter(merged), indices=[i])
     return merged
 
 
