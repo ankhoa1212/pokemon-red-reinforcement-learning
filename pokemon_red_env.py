@@ -3,7 +3,7 @@ import numpy as np
 from pyboy import PyBoy
 from pyboy.utils import WindowEvent
 from PIL import Image
-from image_checker import stitch_images, compare_images
+from image_checker import compare_images
 import uuid
 import pandas as pd
 from pathlib import Path

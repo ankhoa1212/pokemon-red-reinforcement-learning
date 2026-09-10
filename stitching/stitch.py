@@ -30,7 +30,7 @@ def stitch_images(stitch_dir, stitch_filename='map.png', verbose=1):
     if status == cv2.Stitcher_OK:
         if verbose > 0:
             print("Image stitching successful!")
-        map_save = cv2.imwrite(STITCH_DIR + stitch_filename, pano)
+        map_save = cv2.imwrite(stitch_dir + stitch_filename, pano)
         if map_save and verbose > 0:
             print(f"Stitched image saved as '{stitch_filename}'.")
     else:
