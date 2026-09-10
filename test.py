@@ -1,4 +1,5 @@
 from main import create_env
+from image_checker import DOWNSAMPLE_SIZE, QUANTIZATION_LEVELS
 import os
 import glob
 from stable_baselines3 import PPO
@@ -45,6 +46,10 @@ def test(episode_length: Optional[int], run_mode=RunMode.MANUAL, debug=False):
         # hook a future checkpoint-resume feature would populate with a
         # restored table; today there is no such feature, so it is empty.
         "initial_visit_counts": {},
+        # Exploration-hash granularity. Left at image_checker's defaults;
+        # override here to compare configs across runs without editing code.
+        "hash_downsample_size": DOWNSAMPLE_SIZE,
+        "hash_quantization_levels": QUANTIZATION_LEVELS,
     }
     if run_mode == RunMode.MANUAL:
         from pyboy import PyBoy

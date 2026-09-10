@@ -4,7 +4,7 @@ import numpy as np
 from pyboy import PyBoy
 from pyboy.utils import WindowEvent
 from PIL import Image
-from image_checker import hash_screen_state
+from image_checker import DOWNSAMPLE_SIZE, QUANTIZATION_LEVELS, hash_screen_state
 import uuid
 import pandas as pd
 from pathlib import Path
@@ -30,6 +30,10 @@ class PokemonRedEnv(Env):
         self.steps = 0
         self.max_steps = settings["max_steps"]
         self.visit_counts = Counter(settings.get("initial_visit_counts", {}))
+        # Hash granularity, sourced from settings so different runs can
+        # compare configs without editing image_checker.py directly.
+        self.hash_downsample_size = settings.get("hash_downsample_size", DOWNSAMPLE_SIZE)
+        self.hash_quantization_levels = settings.get("hash_quantization_levels", QUANTIZATION_LEVELS)
         # Counts incremented locally since the last cross-worker sync (see
         # tensorboard_callback.sync_visit_counts). Cleared by
         # pop_visit_count_delta() each time this worker's delta is pulled.
@@ -124,7 +128,9 @@ class PokemonRedEnv(Env):
     def calculate_fitness(self):
         self._previous_fitness=self._fitness
         screen = self._get_obs()["screen"]
-        state_hash = hash_screen_state(screen)
+        state_hash = hash_screen_state(
+            screen, self.hash_downsample_size, self.hash_quantization_levels
+        )
         self.visit_counts[state_hash] += 1
         self._visit_count_delta[state_hash] += 1
         visit_count = self.visit_counts[state_hash]

@@ -1,4 +1,5 @@
 from pokemon_red_env import PokemonRedEnv
+from image_checker import DOWNSAMPLE_SIZE, QUANTIZATION_LEVELS
 from gymnasium.utils.env_checker import check_env
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import (
@@ -67,6 +68,10 @@ if __name__ == "__main__":
         # hook a future checkpoint-resume feature would populate with a
         # restored table; today there is no such feature, so it is empty.
         "initial_visit_counts": {},
+        # Exploration-hash granularity. Left at image_checker's defaults;
+        # override here to compare configs across runs without editing code.
+        "hash_downsample_size": DOWNSAMPLE_SIZE,
+        "hash_quantization_levels": QUANTIZATION_LEVELS,
     }
 
     try:
