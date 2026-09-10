@@ -10,7 +10,6 @@ import pandas as pd
 from pathlib import Path
 from copy import deepcopy
 from math import sqrt
-import os
 
 class PokemonRedEnv(Env):
 
@@ -95,7 +94,7 @@ class PokemonRedEnv(Env):
         truncated = self.truncated_check()
         if (terminated or truncated) and self.save_info:
             pd.DataFrame(self.info).to_csv(
-                self.saved_info_directory / Path(f'trainer_info.csv.gz'), compression='gzip', mode='a')
+                self.saved_info_directory / Path('trainer_info.csv.gz'), compression='gzip', mode='a')
         return observation, reward, terminated, truncated, info
 
     def truncated_check(self):

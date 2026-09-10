@@ -4,15 +4,12 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import (
     CallbackList,
     CheckpointCallback,
-    EvalCallback,
 )
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
 from tensorboard_callback import TensorBoardCallback
 from copy import deepcopy
 import os
-import sys
-import glob
 import uuid
 import datetime
 
