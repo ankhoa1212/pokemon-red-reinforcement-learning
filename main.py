@@ -26,10 +26,25 @@ MASTER_MAP_FILENAME = "master_map.png"  # master map filename
 
 NUM_CPU = os.cpu_count() if os.cpu_count() is not None else 1
 
+# How many rollouts to wait between cross-worker visit-count syncs. Named
+# and tunable independently of PPO's n_steps (see TensorBoardCallback).
+SYNC_INTERVAL = 1
+
 
 def create_env(env_settings, env_id=0, debug=False, seed=0):
     set_random_seed(seed)
-    env = PokemonRedEnv(settings=env_settings)
+    # Give this environment instance its own picklable copy of the initial
+    # visit-count seed, rather than a shared reference to env_settings'
+    # dict -- under SubprocVecEnv each worker already gets an independent
+    # copy via pickling, and copying here keeps DummyVecEnv/in-process
+    # construction consistent with that: no two environment instances
+    # mutate the same visit_counts object by accident before U3's periodic
+    # merge is what's responsible for reconciling their state.
+    settings = dict(env_settings)
+    settings["initial_visit_counts"] = dict(
+        env_settings.get("initial_visit_counts", {})
+    )
+    env = PokemonRedEnv(settings=settings)
     env.reset(seed + env_id)
     if debug:
         try:
@@ -54,6 +69,10 @@ if __name__ == "__main__":
         "env_data_directory": ENV_DATA_DIR + run_id + "/",
         "start_state_path": "start_states/fast_off_set_start.state",
         "save_info": True,
+        # Seed value for each worker's local visit-count table. This is the
+        # visible hook a future checkpoint-resume feature would populate
+        # (see plan Scope Boundaries); today it is always empty.
+        "initial_visit_counts": {},
     }
 
     try:
@@ -76,7 +95,12 @@ if __name__ == "__main__":
     # eval_callback = EvalCallback(environments, best_model_save_path=MODEL_DIR)
 
     callbacks = CallbackList(
-        [checkpoint_callback, TensorBoardCallback(CHECKPOINT_DIR, verbose=1)]
+        [
+            checkpoint_callback,
+            TensorBoardCallback(
+                CHECKPOINT_DIR, verbose=1, sync_interval=SYNC_INTERVAL
+            ),
+        ]
     )
 
     # latest_checkpoint = None
