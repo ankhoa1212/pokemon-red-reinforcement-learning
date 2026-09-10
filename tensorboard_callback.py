@@ -28,7 +28,8 @@ def merge_visit_count_deltas(global_counts, deltas):
     Returns:
         A new Counter: global_counts with every delta's counts added in.
         Returned as a Counter, not a plain dict -- this value gets pushed
-        back onto each worker's `visit_counts` via VecEnv.set_attr, and
+        back onto each worker's `visit_counts` via
+        VecEnv.env_method("set_visit_counts", ...), and
         PokemonRedEnv.calculate_fitness relies on Counter's zero-default
         behavior (`self.visit_counts[key] += 1`) for keys it hasn't seen
         yet; downgrading to a plain dict here would KeyError on that line
@@ -49,27 +50,34 @@ def sync_visit_counts(vec_env, global_counts):
     (all workers, not just index 0). If every worker's delta is empty (no
     new states since the last sync), every local table already matches
     global_counts from the previous round, so the merge and the
-    full-table set_attr broadcast are skipped -- that broadcast cost grows
-    with the number of distinct states found so far, and paying it when
-    nothing changed is pure waste. Otherwise, merges the deltas into
+    full-table env_method broadcast are skipped -- that broadcast cost
+    grows with the number of distinct states found so far, and paying it
+    when nothing changed is pure waste. Otherwise, merges the deltas into
     global_counts with merge_visit_count_deltas, then broadcasts a copy of
     the resulting global table to every worker via
-    set_attr("visit_counts", ...) so each worker's local table converges
-    on the shared baseline.
+    env_method("set_visit_counts", ...) so each worker's local table
+    converges on the shared baseline.
 
     A distinct Counter copy is set per worker rather than sharing one
-    object across the set_attr call: under DummyVecEnv, all workers run
-    in this same process, so set_attr("visit_counts", merged) with no
-    per-worker copy would hand every worker (and global_counts itself)
-    the same mutable object -- every worker's subsequent local increments
-    would then double-count directly into global_counts, silently
+    object across the broadcast: under DummyVecEnv, all workers run in
+    this same process, so pushing the same mutable object to every
+    worker (and global_counts itself) would let every worker's subsequent
+    local increments double-count directly into global_counts, silently
     inflating visit counts further with every sync. SubprocVecEnv doesn't
-    have this problem (each worker is a separate process, so set_attr's
+    have this problem (each worker is a separate process, so env_method's
     pickling already copies the value), but the fix must hold for both.
+
+    The broadcast uses VecEnv.env_method("set_visit_counts", ...) rather
+    than VecEnv.set_attr("visit_counts", ...): set_attr does a plain
+    setattr on whatever object each VecEnv slot holds, while env_method
+    resolves through Gymnasium's Wrapper.get_wrapper_attr, which reaches
+    the wrapped PokemonRedEnv instance correctly even when a gym.make()
+    wrapper sits in front of it. set_attr would silently shadow the
+    attribute on the outer wrapper instead.
 
     Args:
         vec_env: a VecEnv-like object (DummyVecEnv, SubprocVecEnv, or a
-            duck-typed stub for testing) exposing env_method/set_attr.
+            duck-typed stub for testing) exposing env_method.
         global_counts: the current global visit-count table.
 
     Returns:
@@ -82,7 +90,7 @@ def sync_visit_counts(vec_env, global_counts):
         return global_counts
     merged = merge_visit_count_deltas(global_counts, deltas)
     for i in range(vec_env.num_envs):
-        vec_env.set_attr("visit_counts", Counter(merged), indices=[i])
+        vec_env.env_method("set_visit_counts", Counter(merged), indices=[i])
     return merged
 
 
@@ -170,6 +178,12 @@ class TensorBoardCallback(BaseCallback):
         self._rollouts_since_sync += 1
         if self._rollouts_since_sync >= self.sync_interval:
             self._rollouts_since_sync = 0
+            distinct_before = len(self.global_visit_counts)
             self.global_visit_counts = sync_visit_counts(
                 self.training_env, self.global_visit_counts
+            )
+            distinct_after = len(self.global_visit_counts)
+            self.logger.record("env_stats/distinct_states_total", distinct_after)
+            self.logger.record(
+                "env_stats/distinct_states_new", distinct_after - distinct_before
             )

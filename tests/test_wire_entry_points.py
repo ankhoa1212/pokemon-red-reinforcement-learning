@@ -47,5 +47,9 @@ def test_create_env_seeded_instances_do_not_share_object_identity(tmp_path):
         env_a = create_env(env_settings, env_id=0)
         env_b = create_env(env_settings, env_id=1)
 
-    assert env_a.visit_counts == env_b.visit_counts
-    assert env_a.visit_counts is not env_b.visit_counts
+    # .unwrapped reaches the underlying PokemonRedEnv directly: plain
+    # attribute access on the gym.make()-returned object itself does not
+    # forward through Gymnasium's wrapper chain (only get_wrapper_attr
+    # does), so tests reading internal attributes must go through it too.
+    assert env_a.unwrapped.visit_counts == env_b.unwrapped.visit_counts
+    assert env_a.unwrapped.visit_counts is not env_b.unwrapped.visit_counts

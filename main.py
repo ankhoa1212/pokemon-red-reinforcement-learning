@@ -1,4 +1,6 @@
-from pokemon_red_env import PokemonRedEnv
+import gymnasium as gym
+import pokemon_red_env  # noqa: F401 -- import triggers gym.register(pokemon_red_env.ENV_ID)
+from image_checker import DOWNSAMPLE_SIZE, QUANTIZATION_LEVELS
 from gymnasium.utils.env_checker import check_env
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import (
@@ -38,8 +40,8 @@ def create_env(env_settings, env_id=0, debug=False, seed=0):
     # environment instances mutate the same visit_counts dict by accident
     # before the cross-worker merge is what reconciles their state.
     settings = deepcopy(env_settings)
-    env = PokemonRedEnv(settings=settings)
-    env.reset(seed + env_id)
+    env = gym.make(pokemon_red_env.ENV_ID, settings=settings)
+    env.reset(seed=seed + env_id)
     if debug:
         try:
             check_env(env)
@@ -67,6 +69,10 @@ if __name__ == "__main__":
         # hook a future checkpoint-resume feature would populate with a
         # restored table; today there is no such feature, so it is empty.
         "initial_visit_counts": {},
+        # Exploration-hash granularity. Left at image_checker's defaults;
+        # override here to compare configs across runs without editing code.
+        "hash_downsample_size": DOWNSAMPLE_SIZE,
+        "hash_quantization_levels": QUANTIZATION_LEVELS,
     }
 
     try:

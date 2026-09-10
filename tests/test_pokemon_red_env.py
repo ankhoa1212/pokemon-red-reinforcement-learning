@@ -52,6 +52,40 @@ def test_revisit_yields_strictly_smaller_reward(tmp_path):
     assert second_reward < first_reward
 
 
+def test_default_hash_settings_match_pre_configurability_behavior(tmp_path):
+    env = build_env(tmp_path, fill_value=100)
+
+    screen = env._get_obs()["screen"]
+    state_hash = hash_screen_state(screen)
+
+    env.calculate_fitness()
+
+    assert env.visit_counts[state_hash] == 1
+
+
+def test_overridden_hash_settings_change_visit_count_behavior(tmp_path):
+    coarse_env = build_env(
+        tmp_path, fill_value=40, hash_quantization_levels=2
+    )
+    fine_env = build_env(tmp_path, fill_value=40, hash_quantization_levels=8)
+
+    coarse_env.pyboy.screen.ndarray = make_frame(40)
+    coarse_env.calculate_fitness()
+    coarse_env.pyboy.screen.ndarray = make_frame(70)
+    coarse_reward = coarse_env.calculate_fitness()
+
+    fine_env.pyboy.screen.ndarray = make_frame(40)
+    fine_env.calculate_fitness()
+    fine_env.pyboy.screen.ndarray = make_frame(70)
+    fine_reward = fine_env.calculate_fitness()
+
+    # At quantization_levels=2, both fill values fall in the same coarse
+    # bucket, so the second frame is treated as a revisit (smaller reward).
+    # At quantization_levels=8, they fall in different buckets, so the
+    # second frame is treated as a first visit (max reward).
+    assert coarse_reward < fine_reward
+
+
 # --- Integration ---------------------------------------------------------
 
 def test_step_reward_equals_one_over_sqrt_count(tmp_path):
