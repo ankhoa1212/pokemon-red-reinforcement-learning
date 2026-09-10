@@ -30,6 +30,10 @@ class PokemonRedEnv(Env):
         self.steps = 0
         self.max_steps = settings["max_steps"]
         self.visit_counts = settings.get("initial_visit_counts", {})
+        # Counts incremented locally since the last cross-worker sync (see
+        # tensorboard_callback.sync_visit_counts). Cleared by
+        # pop_visit_count_delta() each time this worker's delta is pulled.
+        self._visit_count_delta = {}
         self.info = []
         self._fitness = 0
         self._previous_fitness = 0
@@ -123,6 +127,7 @@ class PokemonRedEnv(Env):
         state_hash = hash_screen_state(screen)
         visit_count = self.visit_counts.get(state_hash, 0) + 1
         self.visit_counts[state_hash] = visit_count
+        self._visit_count_delta[state_hash] = self._visit_count_delta.get(state_hash, 0) + 1
         reward = 1 / sqrt(visit_count)
 
         if visit_count == 1:
@@ -148,6 +153,26 @@ class PokemonRedEnv(Env):
         self.steps = 0
 
         return self._get_obs(), {}
+
+    def pop_visit_count_delta(self):
+        """
+        Returns the visit counts incremented locally since the last call to
+        this method, then clears the local delta tracker.
+
+        This is the "pull" half of the cross-worker visit-count merge
+        (see tensorboard_callback.sync_visit_counts): the main process
+        calls this via VecEnv.env_method on every worker to collect what
+        each worker has newly observed since its last sync, without
+        needing to transfer that worker's entire (unboundedly growing)
+        local table.
+
+        Returns:
+            A dict mapping state hash -> count incremented since the last
+            pop, i.e. this worker's delta.
+        """
+        delta = self._visit_count_delta
+        self._visit_count_delta = {}
+        return delta
 
     def render(self):
         return self.pyboy.screen.image

@@ -3,6 +3,64 @@ from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 
+def merge_visit_count_deltas(global_counts, deltas):
+    """
+    Merges one or more worker-local visit-count deltas into a global
+    visit-count table.
+
+    Each delta represents a single worker's counts incremented since its
+    last sync (see PokemonRedEnv.pop_visit_count_delta). A given state is
+    only ever incremented, between two syncs, by the worker(s) that
+    actually observed it during that interval, so when a key appears in
+    more than one delta (or already exists in global_counts) the counts
+    represent independent new observations and are summed together, not
+    deduplicated.
+
+    This is pure and standalone -- it doesn't touch any vectorized-env
+    machinery -- so it can be unit tested directly against plain dicts.
+
+    Args:
+        global_counts: the current global visit-count table. Not mutated.
+        deltas: an iterable of per-worker delta dicts (state hash -> count
+            increment observed since that worker's last sync).
+
+    Returns:
+        A new dict: global_counts with every delta's counts added in.
+    """
+    merged = dict(global_counts)
+    for delta in deltas:
+        for key, count in delta.items():
+            merged[key] = merged.get(key, 0) + count
+    return merged
+
+
+def sync_visit_counts(vec_env, global_counts):
+    """
+    Runs one pull/merge/push visit-count sync round across every worker in
+    a vectorized environment.
+
+    Pulls each worker's local delta via env_method("pop_visit_count_delta")
+    (all workers, not just index 0), merges those deltas into
+    global_counts with merge_visit_count_deltas, then broadcasts the
+    resulting global table back to every worker via
+    set_attr("visit_counts", ...) so each worker's local table converges
+    on the shared baseline.
+
+    Args:
+        vec_env: a VecEnv-like object (DummyVecEnv, SubprocVecEnv, or a
+            duck-typed stub for testing) exposing env_method/set_attr.
+        global_counts: the current global visit-count table.
+
+    Returns:
+        The updated global visit-count table (also pushed to every
+        worker).
+    """
+    deltas = vec_env.env_method("pop_visit_count_delta")
+    merged = merge_visit_count_deltas(global_counts, deltas)
+    vec_env.set_attr("visit_counts", merged)
+    return merged
+
+
 def calculate_values(info):
     sum_dict = {}
     count_dict = {}
@@ -30,10 +88,16 @@ def calculate_values(info):
 
 
 class TensorBoardCallback(BaseCallback):
-    def __init__(self, log_dir, verbose: int = 0):
+    def __init__(self, log_dir, verbose: int = 0, sync_interval: int = 1):
         super().__init__(verbose)
         self.log_dir = log_dir
         self.writer = None
+        # How many rollouts to wait between cross-worker visit-count syncs.
+        # Named and tunable independently of PPO's n_steps -- see
+        # sync_visit_counts / _on_rollout_end.
+        self.sync_interval = sync_interval
+        self._rollouts_since_sync = 0
+        self.global_visit_counts = {}
 
     def _on_training_start(self) -> None:
         if self.verbose >= 1:
@@ -78,4 +142,9 @@ class TensorBoardCallback(BaseCallback):
         pass
 
     def _on_rollout_end(self) -> None:
-        pass
+        self._rollouts_since_sync += 1
+        if self._rollouts_since_sync >= self.sync_interval:
+            self._rollouts_since_sync = 0
+            self.global_visit_counts = sync_visit_counts(
+                self.training_env, self.global_visit_counts
+            )
