@@ -170,6 +170,12 @@ class TensorBoardCallback(BaseCallback):
         self._rollouts_since_sync += 1
         if self._rollouts_since_sync >= self.sync_interval:
             self._rollouts_since_sync = 0
+            distinct_before = len(self.global_visit_counts)
             self.global_visit_counts = sync_visit_counts(
                 self.training_env, self.global_visit_counts
+            )
+            distinct_after = len(self.global_visit_counts)
+            self.logger.record("env_stats/distinct_states_total", distinct_after)
+            self.logger.record(
+                "env_stats/distinct_states_new", distinct_after - distinct_before
             )
