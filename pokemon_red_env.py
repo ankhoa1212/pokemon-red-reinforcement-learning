@@ -3,11 +3,12 @@ import numpy as np
 from pyboy import PyBoy
 from pyboy.utils import WindowEvent
 from PIL import Image
-from image_checker import compare_images
+from image_checker import hash_screen_state
 import uuid
 import pandas as pd
 from pathlib import Path
 from copy import deepcopy
+from math import sqrt
 import os
 
 class PokemonRedEnv(Env):
@@ -28,7 +29,7 @@ class PokemonRedEnv(Env):
         self.map = np.array(Image.open(fp=settings["map"]).convert("L"))
         self.steps = 0
         self.max_steps = settings["max_steps"]
-        self.memory = []
+        self.visit_counts = settings.get("initial_visit_counts", {})
         self.info = []
         self._fitness = 0
         self._previous_fitness = 0
@@ -118,30 +119,18 @@ class PokemonRedEnv(Env):
 
     def calculate_fitness(self):
         self._previous_fitness=self._fitness
-        difference = 0
-        img = self._get_obs()["screen"]
-        img = Image.fromarray(img)
-        Path(f"{self.saved_info_directory}{self.image_directory}").mkdir(exist_ok=True)
-        if not self.memory:
-            img.save(f"{self.saved_info_directory}{self.image_directory}{len(self.memory)}.png")
-            self.memory.append(img)
-        else:
-            ind = 0
-            min_difference = 1
-            for i, test_image in enumerate(self.memory):
-                similarity = compare_images(np.array(img), np.array(test_image))
-                test_difference = 1 - similarity
-                if test_difference > difference:
-                    ind = i
-                    difference = test_difference
-                else:
-                    min_difference = min(min_difference, test_difference)
+        screen = self._get_obs()["screen"]
+        state_hash = hash_screen_state(screen)
+        visit_count = self.visit_counts.get(state_hash, 0) + 1
+        self.visit_counts[state_hash] = visit_count
+        reward = 1 / sqrt(visit_count)
 
-            if difference > 0.8 and min_difference > 0.2:  # threshold for saving images
-                difference = max(0, min(difference, 1))
-                img.save(f"{self.saved_info_directory}{self.image_directory}{len(self.memory)}_{ind}_{difference}.png")
-                self.memory.append(img)
-        self._fitness += difference
+        if visit_count == 1:
+            img = Image.fromarray(screen)
+            Path(f"{self.saved_info_directory}{self.image_directory}").mkdir(exist_ok=True)
+            img.save(f"{self.saved_info_directory}{self.image_directory}{state_hash.hex()}.png")
+
+        self._fitness += reward
         return self._fitness-self._previous_fitness
 
     def reset(self, seed=None, **kwargs):
@@ -156,7 +145,6 @@ class PokemonRedEnv(Env):
 
         self.last_actions = np.zeros((self.frames_to_track,), dtype=np.uint8)
         self.info = []
-        self.memory = []
         self.steps = 0
 
         return self._get_obs(), {}
