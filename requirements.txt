@@ -8,3 +8,5 @@ tqdm
 rich
 # below are for logging with tensorboard
 tensorboard
+# below are for testing
+pytest

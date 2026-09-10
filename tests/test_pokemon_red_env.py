@@ -8,20 +8,9 @@ import pytest
 
 import image_checker
 import pokemon_red_env
+from conftest import SCREEN_HEIGHT, SCREEN_WIDTH, default_env_settings, make_frame
 from image_checker import hash_screen_state
 from pokemon_red_env import PokemonRedEnv
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-# Typical Game Boy screen resolution (rows, cols); pyboy's screen.ndarray has
-# a trailing color-channel axis that _get_obs slices down to one channel.
-SCREEN_HEIGHT = 144
-SCREEN_WIDTH = 160
-
-
-def make_frame(fill_value: int) -> np.ndarray:
-    """Builds a synthetic multi-channel screen filled with one value."""
-    return np.full((SCREEN_HEIGHT, SCREEN_WIDTH, 4), fill_value, dtype=np.uint8)
 
 
 def make_random_frame(seed: int) -> np.ndarray:
@@ -31,28 +20,10 @@ def make_random_frame(seed: int) -> np.ndarray:
     return rng.randint(0, 256, size=(SCREEN_HEIGHT, SCREEN_WIDTH, 4)).astype(np.uint8)
 
 
-def make_settings(tmp_path, **overrides):
-    settings = {
-        "game_path": "pokemon_red.gb",
-        "debug": False,
-        "frame_rate": 24,
-        "map": str(REPO_ROOT / "images" / "master_map.png"),
-        "output_shape": (144, 160),
-        "max_steps": 1000,
-        "image_directory": "images/",
-        "view": None,
-        "env_data_directory": str(tmp_path / "env_data") + "/",
-        "start_state_path": str(REPO_ROOT / "start_states" / "fast_off_set_start.state"),
-        "save_info": False,
-    }
-    settings.update(overrides)
-    return settings
-
-
 def build_env(tmp_path, fill_value=100, **setting_overrides):
     """Constructs a PokemonRedEnv with PyBoy mocked out, seeded with a
     synthetic screen frame."""
-    settings = make_settings(tmp_path, **setting_overrides)
+    settings = default_env_settings(tmp_path, **setting_overrides)
     with patch("pokemon_red_env.PyBoy") as mock_pyboy_class:
         mock_pyboy_class.return_value.screen.ndarray = make_frame(fill_value)
         env = PokemonRedEnv(settings=settings)
@@ -61,7 +32,7 @@ def build_env(tmp_path, fill_value=100, **setting_overrides):
 
 
 def image_dir_for(env) -> Path:
-    return Path(f"{env.saved_info_directory}{env.image_directory}")
+    return Path(env.saved_info_directory) / env.image_directory
 
 
 # --- Happy path ---------------------------------------------------------

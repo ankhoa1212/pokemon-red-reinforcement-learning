@@ -1,3 +1,4 @@
+from collections import Counter
 from stable_baselines3.common.callbacks import BaseCallback
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
@@ -25,12 +26,17 @@ def merge_visit_count_deltas(global_counts, deltas):
             increment observed since that worker's last sync).
 
     Returns:
-        A new dict: global_counts with every delta's counts added in.
+        A new Counter: global_counts with every delta's counts added in.
+        Returned as a Counter, not a plain dict -- this value gets pushed
+        back onto each worker's `visit_counts` via VecEnv.set_attr, and
+        PokemonRedEnv.calculate_fitness relies on Counter's zero-default
+        behavior (`self.visit_counts[key] += 1`) for keys it hasn't seen
+        yet; downgrading to a plain dict here would KeyError on that line
+        the next time a worker visits a genuinely new state.
     """
-    merged = dict(global_counts)
+    merged = Counter(global_counts)
     for delta in deltas:
-        for key, count in delta.items():
-            merged[key] = merged.get(key, 0) + count
+        merged.update(delta)
     return merged
 
 
@@ -40,7 +46,12 @@ def sync_visit_counts(vec_env, global_counts):
     a vectorized environment.
 
     Pulls each worker's local delta via env_method("pop_visit_count_delta")
-    (all workers, not just index 0), merges those deltas into
+    (all workers, not just index 0). If every worker's delta is empty (no
+    new states since the last sync), every local table already matches
+    global_counts from the previous round, so the merge and the
+    full-table set_attr broadcast are skipped -- that broadcast cost grows
+    with the number of distinct states found so far, and paying it when
+    nothing changed is pure waste. Otherwise, merges the deltas into
     global_counts with merge_visit_count_deltas, then broadcasts the
     resulting global table back to every worker via
     set_attr("visit_counts", ...) so each worker's local table converges
@@ -53,9 +64,11 @@ def sync_visit_counts(vec_env, global_counts):
 
     Returns:
         The updated global visit-count table (also pushed to every
-        worker).
+        worker, unless no worker had anything new to report).
     """
     deltas = vec_env.env_method("pop_visit_count_delta")
+    if not any(deltas):
+        return global_counts
     merged = merge_visit_count_deltas(global_counts, deltas)
     vec_env.set_attr("visit_counts", merged)
     return merged

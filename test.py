@@ -42,8 +42,8 @@ def test(episode_length: Optional[int], run_mode=RunMode.MANUAL, debug=False):
         "start_state_path": "start_states/fast_off_set_start.state",
         "save_info": True,
         # Seed value for each worker's local visit-count table. This is the
-        # visible hook a future checkpoint-resume feature would populate
-        # (see plan Scope Boundaries); today it is always empty.
+        # hook a future checkpoint-resume feature would populate with a
+        # restored table; today there is no such feature, so it is empty.
         "initial_visit_counts": {},
     }
     if run_mode == RunMode.MANUAL:

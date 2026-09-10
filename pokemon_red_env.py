@@ -1,3 +1,4 @@
+from collections import Counter
 from gymnasium import spaces, Env
 import numpy as np
 from pyboy import PyBoy
@@ -29,11 +30,11 @@ class PokemonRedEnv(Env):
         self.map = np.array(Image.open(fp=settings["map"]).convert("L"))
         self.steps = 0
         self.max_steps = settings["max_steps"]
-        self.visit_counts = settings.get("initial_visit_counts", {})
+        self.visit_counts = Counter(settings.get("initial_visit_counts", {}))
         # Counts incremented locally since the last cross-worker sync (see
         # tensorboard_callback.sync_visit_counts). Cleared by
         # pop_visit_count_delta() each time this worker's delta is pulled.
-        self._visit_count_delta = {}
+        self._visit_count_delta = Counter()
         self.info = []
         self._fitness = 0
         self._previous_fitness = 0
@@ -125,15 +126,16 @@ class PokemonRedEnv(Env):
         self._previous_fitness=self._fitness
         screen = self._get_obs()["screen"]
         state_hash = hash_screen_state(screen)
-        visit_count = self.visit_counts.get(state_hash, 0) + 1
-        self.visit_counts[state_hash] = visit_count
-        self._visit_count_delta[state_hash] = self._visit_count_delta.get(state_hash, 0) + 1
+        self.visit_counts[state_hash] += 1
+        self._visit_count_delta[state_hash] += 1
+        visit_count = self.visit_counts[state_hash]
         reward = 1 / sqrt(visit_count)
 
         if visit_count == 1:
             img = Image.fromarray(screen)
-            Path(f"{self.saved_info_directory}{self.image_directory}").mkdir(exist_ok=True)
-            img.save(f"{self.saved_info_directory}{self.image_directory}{state_hash.hex()}.png")
+            image_dir = Path(self.saved_info_directory) / self.image_directory
+            image_dir.mkdir(exist_ok=True)
+            img.save(image_dir / f"{state_hash.hex()}.png")
 
         self._fitness += reward
         return self._fitness-self._previous_fitness
@@ -171,7 +173,7 @@ class PokemonRedEnv(Env):
             pop, i.e. this worker's delta.
         """
         delta = self._visit_count_delta
-        self._visit_count_delta = {}
+        self._visit_count_delta = Counter()
         return delta
 
     def render(self):

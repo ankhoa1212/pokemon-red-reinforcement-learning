@@ -1,3 +1,5 @@
+from collections import Counter
+
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
@@ -20,18 +22,18 @@ class StubCountEnv(gym.Env):
 
     def __init__(self):
         super().__init__()
-        self.visit_counts = {}
-        self._visit_count_delta = {}
+        self.visit_counts = Counter()
+        self._visit_count_delta = Counter()
 
     def increment(self, key):
         """Test helper mirroring PokemonRedEnv.calculate_fitness's
         bookkeeping: simulates this worker observing a state once."""
-        self.visit_counts[key] = self.visit_counts.get(key, 0) + 1
-        self._visit_count_delta[key] = self._visit_count_delta.get(key, 0) + 1
+        self.visit_counts[key] += 1
+        self._visit_count_delta[key] += 1
 
     def pop_visit_count_delta(self):
         delta = self._visit_count_delta
-        self._visit_count_delta = {}
+        self._visit_count_delta = Counter()
         return delta
 
     def reset(self, *, seed=None, options=None):
@@ -76,6 +78,23 @@ def test_merge_empty_delta_leaves_global_table_unchanged():
     assert merged == global_counts
     # Pure function: the input dict itself must not be mutated.
     assert merged is not global_counts
+
+
+def test_sync_with_every_delta_empty_skips_broadcast():
+    global_counts = {"pre_existing": 5}
+    vec_env = DummyVecEnv([make_stub_env, make_stub_env])
+    try:
+        # No worker has incremented anything since the last sync.
+        result = sync_visit_counts(vec_env, global_counts)
+
+        # The unchanged table is returned as-is (same object), and nothing
+        # is pushed down to the workers -- broadcasting a no-op change
+        # would cost O(table size) in IPC for zero new information.
+        assert result is global_counts
+        for local_table in vec_env.get_attr("visit_counts"):
+            assert local_table == {}
+    finally:
+        vec_env.close()
 
 
 # --- Integration: DummyVecEnv (in-process, all-workers scope) ----------
@@ -130,12 +149,13 @@ def test_sync_with_one_worker_delta_empty_only_adds_the_others():
 
 def test_sync_makes_one_workers_count_visible_in_another_process():
     """
-    Exercises the actual cross-process boundary R3 depends on: a count
-    incremented inside worker 0's OS process must become visible inside
-    worker 1's separate OS process after a sync round. Uses
+    Exercises the actual cross-process boundary the merge protocol depends
+    on: a count incremented inside worker 0's OS process must become
+    visible inside worker 1's separate OS process after a sync round. Uses
     SubprocVecEnv's default start method (forkserver, falling back to
     spawn), the same one training uses -- so this exercises the exact
-    process-creation path R3 depends on rather than a test-only shortcut.
+    process-creation path the protocol depends on, not a test-only
+    shortcut.
     """
     vec_env = SubprocVecEnv([make_stub_env, make_stub_env])
     try:

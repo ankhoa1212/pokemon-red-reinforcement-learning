@@ -37,7 +37,7 @@ def hash_screen_state(screen: np.ndarray) -> Hashable:
         A hashable key (bytes) suitable for use as a dict key.
     """
     downsampled = cv2.resize(
-        screen.astype(np.uint8), DOWNSAMPLE_SIZE, interpolation=cv2.INTER_AREA
+        screen.astype(np.uint8, copy=False), DOWNSAMPLE_SIZE, interpolation=cv2.INTER_AREA
     )
     quantized = (downsampled.astype(np.uint32) * QUANTIZATION_LEVELS // 256).astype(np.uint8)
     return quantized.tobytes()
