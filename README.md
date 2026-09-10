@@ -35,8 +35,8 @@ python main.py
 - [x] Implement [PyBoy](https://github.com/Baekalfen/PyBoy) for simulation
 - [x] Track data of runs for evaluation
 - [ ] Save video of agent runs ([here](https://gymnasium.farama.org/introduction/record_agent/))
-- [x] Add simple exploration reward
-- [x] Add map stitching of current area
+- [x] Add persistent, count-based exploration reward (shared across parallel training workers)
+- [ ] Add map stitching of current area (script exists in `stitching/` but isn't wired into the environment or reward)
 - [ ] Add identification of new areas
   - [ ] Test template matching method
 - [ ] Adjust reward based on exploring map with map stitching and new area identification
