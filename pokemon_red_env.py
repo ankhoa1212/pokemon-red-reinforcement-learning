@@ -1,4 +1,5 @@
 from collections import Counter
+import gymnasium as gym
 from gymnasium import spaces, Env
 import numpy as np
 from pyboy import PyBoy
@@ -10,6 +11,8 @@ import pandas as pd
 from pathlib import Path
 from copy import deepcopy
 from math import sqrt
+
+ENV_ID = "PokemonRed-v0"
 
 class PokemonRedEnv(Env):
 
@@ -191,3 +194,7 @@ class PokemonRedEnv(Env):
         with open(f"{filename}", "wb") as f:
             f.seek(0)
             self.pyboy.save_state(f)
+
+
+if ENV_ID not in gym.registry:
+    gym.register(id=ENV_ID, entry_point="pokemon_red_env:PokemonRedEnv", max_episode_steps=None)
