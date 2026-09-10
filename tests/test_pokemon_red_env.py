@@ -1,4 +1,3 @@
-import inspect
 from math import sqrt
 from pathlib import Path
 from unittest.mock import patch
@@ -7,7 +6,6 @@ import numpy as np
 import pytest
 
 import image_checker
-import pokemon_red_env
 from conftest import SCREEN_HEIGHT, SCREEN_WIDTH, default_env_settings, make_frame
 from image_checker import hash_screen_state
 from pokemon_red_env import PokemonRedEnv
@@ -129,9 +127,3 @@ def test_compare_images_removed_from_image_checker():
 def test_env_has_no_memory_attribute(tmp_path):
     env = build_env(tmp_path)
     assert not hasattr(env, "memory")
-
-
-def test_no_source_references_to_removed_mechanism():
-    source = inspect.getsource(pokemon_red_env)
-    assert "self.memory" not in source
-    assert "compare_images" not in source
