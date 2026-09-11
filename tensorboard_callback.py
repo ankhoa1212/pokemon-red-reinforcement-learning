@@ -354,6 +354,7 @@ class TensorBoardCallback(BaseCallback):
     def _on_training_end(self) -> None:
         if self.verbose > 1:
             print(f"Ending training with TensorBoard to {self.log_dir}")
+        self._sync_master_map()
         if self.writer:
             self.writer.close()
 
