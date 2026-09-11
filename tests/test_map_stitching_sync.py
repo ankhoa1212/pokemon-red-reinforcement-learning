@@ -1,7 +1,10 @@
+from pathlib import Path
+
 import cv2
 import numpy as np
 import pytest
 
+from pokemon_red_env import worker_data_directory
 from tensorboard_callback import (
     collect_new_screenshots,
     resolve_current_map,
@@ -96,6 +99,29 @@ def test_collect_new_screenshots_returns_empty_when_no_workers_exist(tmp_path):
     result = collect_new_screenshots(env_data_directory, "images", already_seen=set())
 
     assert result == []
+
+
+# --- collect_new_screenshots / worker_data_directory: stay in sync ------
+
+def test_collect_new_screenshots_finds_screenshot_saved_via_worker_data_directory(tmp_path):
+    """Guards the coupling between the two path-construction sites:
+    collect_new_screenshots builds its glob pattern from
+    worker_data_directory (see its docstring), so a screenshot saved at
+    the exact directory that function returns for a real worker_id must
+    be found -- if PokemonRedEnv.__init__'s directory layout ever changes,
+    it can only change via worker_data_directory, and this test would
+    catch the glob silently going stale right along with it."""
+    env_data_directory = str(tmp_path / "env_data") + "/"
+    worker_id = "7"
+    image_directory = "images"
+    worker_dir = Path(worker_data_directory(env_data_directory, worker_id))
+    image_dir = worker_dir / image_directory
+    image_dir.mkdir(parents=True, exist_ok=True)
+    screenshot_path = _write_png(image_dir / "a.png", 10)
+
+    result = collect_new_screenshots(env_data_directory, image_directory, already_seen=set())
+
+    assert result == [screenshot_path]
 
 
 # --- resolve_current_map: happy path / preference order -----------------

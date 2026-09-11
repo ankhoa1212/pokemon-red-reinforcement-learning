@@ -14,6 +14,33 @@ from math import sqrt
 
 ENV_ID = "PokemonRed-v0"
 
+
+def worker_data_directory(env_data_directory, worker_id):
+    """
+    Builds the per-worker root directory every PokemonRedEnv instance saves
+    its own trainer_info/screenshots under, keyed by worker_id.
+
+    Shared with tensorboard_callback.collect_new_screenshots (which passes
+    "*" as worker_id to glob across every worker), so the two
+    path-construction sites can't silently drift apart.
+
+    env_data_directory is normalized to end with exactly one "/" before
+    worker_id is appended: every real caller already passes a trailing
+    "/" (matching this function's own output, since a worker directory is
+    itself a valid env_data_directory for a nested caller), so this is a
+    no-op there and the result is byte-identical to the plain
+    `env_data_directory + str(worker_id) + "/"` concatenation this
+    replaces. It only changes behavior for a bare path with no trailing
+    slash (e.g. a pathlib.Path passed directly in tests), where it
+    inserts the missing separator instead of gluing worker_id onto the
+    last path segment.
+    """
+    root = str(env_data_directory)
+    if not root.endswith("/"):
+        root += "/"
+    return f"{root}{worker_id}/"
+
+
 class PokemonRedEnv(Env):
 
     def __init__(self, settings=None):
@@ -23,7 +50,7 @@ class PokemonRedEnv(Env):
         self.start_state_path = settings["start_state_path"]
         self.image_directory = settings["image_directory"]
         self.env_data_directory = settings["env_data_directory"]
-        self.saved_info_directory = self.env_data_directory + str(self.id) + "/"
+        self.saved_info_directory = worker_data_directory(self.env_data_directory, self.id)
         self.save_info = settings["save_info"]
         self.debug = settings["debug"]
         self.view = settings["view"]

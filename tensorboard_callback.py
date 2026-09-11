@@ -3,6 +3,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.logger import Image
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
+from pokemon_red_env import worker_data_directory
 from stitching.stitch import stitch_images
 import cv2
 import glob
@@ -111,6 +112,11 @@ def collect_new_screenshots(env_data_directory, image_directory, already_seen):
     main process can read this directly off disk with a glob, without any
     env_method round-trip into the workers.
 
+    The glob pattern is built via worker_data_directory (imported from
+    pokemon_red_env) with worker_id="*", so this stays in sync with
+    however PokemonRedEnv.__init__ actually lays out a worker's directory
+    on disk -- rather than re-deriving that shape independently here.
+
     Deliberately does not mutate already_seen itself: a failed stitch
     must be able to retry this exact same batch (plus whatever else shows
     up) on the next sync, per the "only advance on success" rule that
@@ -131,7 +137,9 @@ def collect_new_screenshots(env_data_directory, image_directory, already_seen):
         Order is whatever glob returns -- callers that need determinism
         should sort it themselves.
     """
-    pattern = str(Path(env_data_directory) / "*" / image_directory / "*.png")
+    pattern = str(
+        Path(worker_data_directory(env_data_directory, "*")) / image_directory / "*.png"
+    )
     on_disk = glob.glob(pattern)
     return [path for path in on_disk if path not in already_seen]
 
