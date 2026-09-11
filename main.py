@@ -57,7 +57,6 @@ if __name__ == "__main__":
         "game_path": "pokemon_red.gb",
         "debug": True,
         "frame_rate": 24,
-        "map": IMAGE_DIR + MASTER_MAP_FILENAME,
         "output_shape": (144, 160),
         "max_steps": episode_length,
         "image_directory": IMAGE_DIR,

@@ -29,7 +29,6 @@ class PokemonRedEnv(Env):
         self.view = settings["view"]
         self.frame_rate = settings["frame_rate"]
         self.frames_to_track = 1
-        self.map = np.array(Image.open(fp=settings["map"]).convert("L"))
         self.steps = 0
         self.max_steps = settings["max_steps"]
         self.visit_counts = Counter(settings.get("initial_visit_counts", {}))

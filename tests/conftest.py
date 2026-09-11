@@ -24,7 +24,6 @@ def default_env_settings(tmp_path, **overrides):
         "game_path": "pokemon_red.gb",
         "debug": False,
         "frame_rate": 24,
-        "map": str(REPO_ROOT / "images" / "master_map.png"),
         "output_shape": (144, 160),
         "max_steps": 1000,
         "image_directory": "images/",
