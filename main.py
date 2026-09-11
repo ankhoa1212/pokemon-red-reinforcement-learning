@@ -23,12 +23,18 @@ ENV_DATA_DIR = "env_data/"  # directory to save environment data
 
 SCREENSHOT_FILENAME = "screenshot.png"  # screenshot filename
 MASTER_MAP_FILENAME = "master_map.png"  # master map filename
+MASTER_MAP_BACKUP_FILENAME = "master_map.prev.png"  # one-shot master map backup filename
 
 NUM_CPU = os.cpu_count() if os.cpu_count() is not None else 1
 
 # How many rollouts to wait between cross-worker visit-count syncs. Named
 # and tunable independently of PPO's n_steps (see TensorBoardCallback).
 SYNC_INTERVAL = 1
+
+# How many rollouts to wait between master-map stitching syncs. Kept
+# independent of SYNC_INTERVAL -- cv2.Stitcher costs meaningfully more per
+# call than the visit-count merge (see TensorBoardCallback).
+STITCH_SYNC_INTERVAL = 10
 
 
 def create_env(env_settings, env_id=0, debug=False, seed=0):
@@ -97,7 +103,16 @@ if __name__ == "__main__":
         [
             checkpoint_callback,
             TensorBoardCallback(
-                CHECKPOINT_DIR, verbose=1, sync_interval=SYNC_INTERVAL
+                CHECKPOINT_DIR,
+                verbose=1,
+                sync_interval=SYNC_INTERVAL,
+                stitch_sync_interval=STITCH_SYNC_INTERVAL,
+                master_map_path=os.path.join(IMAGE_DIR, MASTER_MAP_FILENAME),
+                master_map_backup_path=os.path.join(
+                    IMAGE_DIR, MASTER_MAP_BACKUP_FILENAME
+                ),
+                env_data_directory=env_settings["env_data_directory"],
+                image_directory=IMAGE_DIR,
             ),
         ]
     )

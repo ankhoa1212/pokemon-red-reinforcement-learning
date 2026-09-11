@@ -1,7 +1,9 @@
 from collections import Counter
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.logger import Image
 from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
+from stitching.stitch import stitch_images
 import cv2
 import glob
 import numpy as np
@@ -248,7 +250,17 @@ def calculate_values(info):
 
 
 class TensorBoardCallback(BaseCallback):
-    def __init__(self, log_dir, verbose: int = 0, sync_interval: int = 1):
+    def __init__(
+        self,
+        log_dir,
+        verbose: int = 0,
+        sync_interval: int = 1,
+        stitch_sync_interval: int = 10,
+        master_map_path=None,
+        master_map_backup_path=None,
+        env_data_directory=None,
+        image_directory=None,
+    ):
         super().__init__(verbose)
         self.log_dir = log_dir
         self.writer = None
@@ -258,6 +270,21 @@ class TensorBoardCallback(BaseCallback):
         self.sync_interval = sync_interval
         self._rollouts_since_sync = 0
         self.global_visit_counts = {}
+
+        # How many rollouts to wait between master-map stitching syncs.
+        # Kept independent of sync_interval -- cv2.Stitcher costs
+        # meaningfully more per call than the visit-count merge, so it
+        # runs on its own, sparser cadence (see _sync_master_map).
+        self.stitch_sync_interval = stitch_sync_interval
+        self._rollouts_since_map_sync = 0
+        self.master_map_path = master_map_path
+        self.master_map_backup_path = master_map_backup_path
+        self.env_data_directory = env_data_directory
+        self.image_directory = image_directory
+        # Screenshot paths already incorporated into a successful stitch.
+        # Only advanced on success (see _sync_master_map / R4) -- a failed
+        # stitch's batch must roll forward into the next sync's attempt.
+        self._already_stitched_screenshots = set()
 
     def _on_training_start(self) -> None:
         if self.verbose >= 1:
@@ -314,3 +341,47 @@ class TensorBoardCallback(BaseCallback):
             self.logger.record(
                 "env_stats/distinct_states_new", distinct_after - distinct_before
             )
+
+        self._rollouts_since_map_sync += 1
+        if self._rollouts_since_map_sync >= self.stitch_sync_interval:
+            self._rollouts_since_map_sync = 0
+            self._sync_master_map()
+
+    def _sync_master_map(self) -> None:
+        """
+        Runs one attempt at stitching every worker's newly-discovered-state
+        screenshots into the persistent master map, on its own cadence
+        (stitch_sync_interval), independent of visit_counts' sync.
+
+        Mirrors sync_visit_counts' empty-delta skip: if no worker has
+        anything new since the last *successful* stitch, no cv2.Stitcher
+        call is made at all (R3). A failed stitch leaves the master map
+        file, the last-logged TensorBoard image, and the already-stitched
+        set all untouched, so the same batch (plus whatever else shows up)
+        is retried on the next sync (R4, R13) -- this never raises or
+        halts training either way.
+        """
+        new_screenshots = collect_new_screenshots(
+            self.env_data_directory,
+            self.image_directory,
+            self._already_stitched_screenshots,
+        )
+        if not new_screenshots:
+            return
+
+        resolved_map = resolve_current_map(
+            self.master_map_path, self.master_map_backup_path
+        )
+        if resolved_map is None:
+            image_paths = new_screenshots
+        else:
+            image_paths = [resolved_map] + new_screenshots
+        status, pano = stitch_images(image_paths)
+        if status != cv2.Stitcher_OK:
+            return
+
+        write_master_map(pano, self.master_map_path, self.master_map_backup_path)
+        # cv2 reads/writes BGR; TensorBoard's image logging expects RGB.
+        pano_rgb = cv2.cvtColor(pano, cv2.COLOR_BGR2RGB)
+        self.logger.record("env_stats/master_map", Image(pano_rgb, "HWC"))
+        self._already_stitched_screenshots.update(new_screenshots)
