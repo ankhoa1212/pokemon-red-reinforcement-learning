@@ -218,6 +218,35 @@ def test_stitch_sync_with_failed_stitch_writes_nothing_and_does_not_raise(tmp_pa
 
 # --- Integration -----------------------------------------------------------
 
+def test_stitch_sync_leaves_corrupt_screenshot_unconsumed_but_advances_valid_ones(tmp_path):
+    """A batch with one genuinely unreadable/corrupt screenshot alongside
+    two valid, overlapping ones still stitches successfully (the corrupt
+    file is skipped by stitch_images, but the remaining two still overlap
+    enough) -- mirrors test_stitching.py's
+    test_unreadable_path_is_skipped_and_stitch_still_proceeds, but checked
+    here at the _sync_master_map level for the actually-consumed set.
+
+    The corrupt path must NOT end up in _already_stitched_screenshots
+    afterward: nothing was permanently wrong with it (e.g. it could have
+    been caught mid-write), so it must roll forward and be retried on the
+    next sync, exactly like a whole failed batch already does (R4) -- just
+    now at per-image granularity instead of per-batch.
+    """
+    callback, env_data_directory = make_map_callback(tmp_path, stitch_sync_interval=1)
+    path_a, path_b = _save_overlapping_screenshot_pair(env_data_directory)
+    corrupt_path = Path(env_data_directory) / "2" / "images" / "corrupt.png"
+    corrupt_path.parent.mkdir(parents=True, exist_ok=True)
+    corrupt_path.write_bytes(b"not a real png")
+
+    callback._on_rollout_end()
+
+    logger = callback.model.logger
+    assert len(logger.image_calls) == 1
+    assert os.path.exists(callback.master_map_path)
+    assert callback._already_stitched_screenshots == {str(path_a), str(path_b)}
+    assert str(corrupt_path) not in callback._already_stitched_screenshots
+
+
 def test_stitch_sync_failed_batch_rolls_forward_into_next_success(tmp_path):
     callback, env_data_directory = make_map_callback(tmp_path, stitch_sync_interval=1)
     canvas = _make_textured_canvas()

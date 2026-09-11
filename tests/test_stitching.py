@@ -64,35 +64,39 @@ def _make_non_overlapping_pair(tmp_path):
 def test_overlapping_images_stitch_successfully(tmp_path):
     path_a, path_b = _make_overlapping_pair(tmp_path)
 
-    status, pano = stitch_images([path_a, path_b])
+    status, pano, used_paths = stitch_images([path_a, path_b])
 
     assert status == cv2.Stitcher_OK
     assert pano is not None
+    assert used_paths == [path_a, path_b]
 
 
 def test_zero_paths_returns_non_ok_without_raising():
-    status, pano = stitch_images([])
+    status, pano, used_paths = stitch_images([])
 
     assert status != cv2.Stitcher_OK
     assert pano is None
+    assert used_paths == []
 
 
 def test_single_path_returns_non_ok_without_raising(tmp_path):
     canvas = _make_textured_canvas()
     path_a = _write_png(tmp_path / "a.png", canvas)
 
-    status, pano = stitch_images([path_a])
+    status, pano, used_paths = stitch_images([path_a])
 
     assert status != cv2.Stitcher_OK
     assert pano is None
+    assert used_paths == [path_a]
 
 
 def test_insufficient_overlap_returns_non_ok_without_raising(tmp_path):
     path_a, path_b = _make_non_overlapping_pair(tmp_path)
 
-    status, pano = stitch_images([path_a, path_b])
+    status, pano, used_paths = stitch_images([path_a, path_b])
 
     assert status != cv2.Stitcher_OK
+    assert used_paths == [path_a, path_b]
 
 
 def test_unreadable_path_is_skipped_and_stitch_still_proceeds(tmp_path):
@@ -100,10 +104,16 @@ def test_unreadable_path_is_skipped_and_stitch_still_proceeds(tmp_path):
     corrupt_path = tmp_path / "corrupt.png"
     corrupt_path.write_bytes(b"not a real png")
 
-    status, pano = stitch_images([path_a, corrupt_path, path_b])
+    status, pano, used_paths = stitch_images([path_a, corrupt_path, path_b])
 
     assert status == cv2.Stitcher_OK
     assert pano is not None
+    # The corrupt file was skipped mid-read, not fed into the stitch --
+    # used_paths must reflect exactly what was actually incorporated, so a
+    # caller can tell this path was NOT consumed this round even though
+    # the overall stitch succeeded.
+    assert used_paths == [path_a, path_b]
+    assert corrupt_path not in used_paths
 
 
 def test_stitch_images_has_no_side_effects_on_disk(tmp_path):

@@ -419,7 +419,7 @@ class TensorBoardCallback(BaseCallback):
                 self.master_map_path is not None
                 and resolved_map == self.master_map_path
             )
-        status, pano = stitch_images(image_paths)
+        status, pano, used_paths = stitch_images(image_paths)
         if status != cv2.Stitcher_OK:
             return
 
@@ -435,4 +435,14 @@ class TensorBoardCallback(BaseCallback):
         # cv2 reads/writes BGR; TensorBoard's image logging expects RGB.
         pano_rgb = cv2.cvtColor(pano, cv2.COLOR_BGR2RGB)
         self.logger.record("env_stats/master_map", Image(pano_rgb, "HWC"))
-        self._already_stitched_screenshots.update(new_screenshots)
+        # Only mark a screenshot as consumed if stitch_images actually
+        # incorporated it (used_paths) *and* it was a genuine screenshot
+        # from this batch (new_screenshots) -- not the resolved master-map
+        # path, which was prepended onto image_paths above but was never
+        # in new_screenshots and isn't a screenshot to track. A screenshot
+        # that stitch_images silently skipped this round (e.g. caught
+        # mid-write by a worker's save, corrupt) stays out of this set, so
+        # it naturally reappears in the next call's collect_new_screenshots
+        # and gets retried -- the same "roll forward on failure" guarantee
+        # R4 gives a whole failed batch, now per-image too.
+        self._already_stitched_screenshots.update(set(used_paths) & set(new_screenshots))
