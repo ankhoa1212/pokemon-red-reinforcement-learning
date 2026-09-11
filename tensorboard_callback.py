@@ -181,11 +181,11 @@ def resolve_current_map(map_path, backup_path):
     return None
 
 
-def write_master_map(pano, map_path, backup_path):
+def write_master_map(pano, map_path, backup_path, map_path_is_readable=None):
     """
     Safely persists a freshly-stitched panorama as the new master map.
 
-    Two hazards this guards against:
+    Three hazards this guards against:
 
     1. A crash or interruption mid-write must never leave map_path
        truncated or corrupt for the next sync (or a human) to read. Fixed
@@ -202,6 +202,13 @@ def write_master_map(pano, map_path, backup_path):
        confirmed readable -- using the same readability check
        resolve_current_map uses -- leaving whatever backup already exists
        untouched.
+    3. cv2.imwrite returns False on failure (e.g. disk full, permission
+       error) instead of raising. Treating that return value as success
+       would go on to os.replace a temp file that was never actually
+       written, raising an uncaught FileNotFoundError. So a False return
+       is treated the same as any other failed-sync case (see
+       _sync_master_map's stitch-status check): map_path is left
+       untouched and the function reports failure without raising.
 
     Args:
         pano: the stitched panorama (a numpy array, as returned by
@@ -209,8 +216,23 @@ def write_master_map(pano, map_path, backup_path):
         map_path: path the new master map should end up at.
         backup_path: path the previous map is copied to first, if it's
             currently readable.
+        map_path_is_readable: whether map_path is currently a readable
+            image, if the caller already knows (e.g. because it just
+            called resolve_current_map and can report whether map_path
+            was the path that resolved). Passing this avoids a second
+            cv2.imread decode of the same file. If None (the default),
+            it's derived here via _is_readable_image, same as before.
+
+    Returns:
+        True if the panorama was written to map_path, False if
+        cv2.imwrite failed (in which case map_path/backup_path are left
+        exactly as they were before this call, aside from the backup
+        copy in hazard 2 above, which -- like the existing map_path --
+        is unaffected either way since map_path itself never changes).
     """
-    if _is_readable_image(map_path):
+    if map_path_is_readable is None:
+        map_path_is_readable = _is_readable_image(map_path)
+    if map_path_is_readable:
         shutil.copyfile(map_path, backup_path)
 
     map_path = Path(map_path)
@@ -219,8 +241,10 @@ def write_master_map(pano, map_path, backup_path):
     # than a generic ".tmp" -- otherwise cv2 can't determine how to
     # encode it at all.
     tmp_path = map_path.with_name(f".{map_path.stem}.tmp{map_path.suffix}")
-    cv2.imwrite(str(tmp_path), pano)
+    if not cv2.imwrite(str(tmp_path), pano):
+        return False
     os.replace(tmp_path, map_path)
+    return True
 
 
 def calculate_values(info):
@@ -355,11 +379,13 @@ class TensorBoardCallback(BaseCallback):
 
         Mirrors sync_visit_counts' empty-delta skip: if no worker has
         anything new since the last *successful* stitch, no cv2.Stitcher
-        call is made at all (R3). A failed stitch leaves the master map
-        file, the last-logged TensorBoard image, and the already-stitched
-        set all untouched, so the same batch (plus whatever else shows up)
-        is retried on the next sync (R4, R13) -- this never raises or
-        halts training either way.
+        call is made at all (R3). A failed stitch, or a stitch that
+        succeeds but fails to write (e.g. disk full -- see
+        write_master_map), leaves the master map file, the last-logged
+        TensorBoard image, and the already-stitched set all untouched, so
+        the same batch (plus whatever else shows up) is retried on the
+        next sync (R4, R13) -- this never raises or halts training either
+        way.
         """
         new_screenshots = collect_new_screenshots(
             self.env_data_directory,
@@ -374,13 +400,30 @@ class TensorBoardCallback(BaseCallback):
         )
         if resolved_map is None:
             image_paths = new_screenshots
+            map_path_is_readable = False
         else:
             image_paths = [resolved_map] + new_screenshots
+            # resolve_current_map prefers map_path over backup_path, so
+            # if map_path is the one that resolved, it's already
+            # confirmed readable -- pass that along instead of making
+            # write_master_map decode the same file again to find out.
+            map_path_is_readable = (
+                self.master_map_path is not None
+                and resolved_map == self.master_map_path
+            )
         status, pano = stitch_images(image_paths)
         if status != cv2.Stitcher_OK:
             return
 
-        write_master_map(pano, self.master_map_path, self.master_map_backup_path)
+        wrote_map = write_master_map(
+            pano,
+            self.master_map_path,
+            self.master_map_backup_path,
+            map_path_is_readable,
+        )
+        if not wrote_map:
+            return
+
         # cv2 reads/writes BGR; TensorBoard's image logging expects RGB.
         pano_rgb = cv2.cvtColor(pano, cv2.COLOR_BGR2RGB)
         self.logger.record("env_stats/master_map", Image(pano_rgb, "HWC"))

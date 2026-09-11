@@ -204,3 +204,29 @@ def test_write_master_map_leaves_original_untouched_if_replace_is_interrupted(
     tmp_candidates = list(tmp_path.glob(".master_map.tmp.png"))
     assert len(tmp_candidates) == 1
     assert np.array_equal(cv2.imread(str(tmp_candidates[0])), new_content)
+
+
+def test_write_master_map_leaves_original_untouched_if_imwrite_fails(
+    tmp_path, monkeypatch
+):
+    # cv2.imwrite returns False on failure (e.g. disk full, permission
+    # error) rather than raising -- unlike the os.replace failure above,
+    # this must be treated as an ordinary failed-sync case (R13): no
+    # exception, and map_path must not be swapped for a file that was
+    # never actually written.
+    map_path = tmp_path / "master_map.png"
+    backup_path = tmp_path / "master_map.prev.png"
+    old_content = _make_image(1)
+    cv2.imwrite(str(map_path), old_content)
+    new_content = _make_image(2)
+
+    monkeypatch.setattr(
+        "tensorboard_callback.cv2.imwrite", lambda *args, **kwargs: False
+    )
+
+    result = write_master_map(new_content, map_path, backup_path)
+
+    assert result is False
+    # map_path itself must still hold the original content -- a failed
+    # imwrite must never reach the os.replace swap.
+    assert np.array_equal(cv2.imread(str(map_path)), old_content)
