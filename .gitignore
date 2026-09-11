@@ -18,6 +18,12 @@ venv/
 # Ignore screenshots
 screenshot.png
 
+# Ignore the runtime-generated master map and its one-shot backup, so a
+# fresh checkout has neither file and the from-scratch bootstrap path in
+# resolve_current_map actually fires on the first sync.
+images/master_map.png
+images/master_map.prev.png
+
 # Ignore run data folders
 env_data/
 checkpoints/

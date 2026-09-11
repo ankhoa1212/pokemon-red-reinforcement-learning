@@ -19,8 +19,14 @@ ENV_DATA_DIR = 'env_data/'        # directory to save environment data
 
 SCREENSHOT_FILENAME = 'screenshot.png'  # screenshot filename
 MASTER_MAP_FILENAME = 'master_map.png'  # master map filename
+MASTER_MAP_BACKUP_FILENAME = 'master_map.prev.png'  # one-shot master map backup filename
 
 num_cpu = 1  # Number of CPU cores to use, set to 1 for testing
+
+# How many rollouts to wait between master-map stitching syncs. Kept
+# independent of PPO's n_steps -- cv2.Stitcher costs meaningfully more per
+# call than the visit-count merge (see TensorBoardCallback).
+STITCH_SYNC_INTERVAL = 10
 
 class RunMode(Enum):
     MANUAL = 1
@@ -34,7 +40,6 @@ def test(episode_length: Optional[int], run_mode=RunMode.MANUAL, debug=False):
         "game_path": "pokemon_red.gb",
         "debug": True,
         "frame_rate": 24,
-        "map": IMAGE_DIR + MASTER_MAP_FILENAME,
         "output_shape": (144, 160),
         "max_steps": episode_length,
         "image_directory": IMAGE_DIR,
@@ -84,7 +89,20 @@ def test(episode_length: Optional[int], run_mode=RunMode.MANUAL, debug=False):
             verbose=1,
         )
         callbacks = CallbackList(
-            [checkpoint_callback, TensorBoardCallback(CHECKPOINT_DIR, verbose=1)]
+            [
+                checkpoint_callback,
+                TensorBoardCallback(
+                    CHECKPOINT_DIR,
+                    verbose=1,
+                    stitch_sync_interval=STITCH_SYNC_INTERVAL,
+                    master_map_path=os.path.join(IMAGE_DIR, MASTER_MAP_FILENAME),
+                    master_map_backup_path=os.path.join(
+                        IMAGE_DIR, MASTER_MAP_BACKUP_FILENAME
+                    ),
+                    env_data_directory=env_settings["env_data_directory"],
+                    image_directory=IMAGE_DIR,
+                ),
+            ]
         )
         model.learn(total_timesteps=episode_length*num_cpu*5, callback=callbacks, tb_log_name="trainer_ppo", progress_bar=True)
         model.save(os.path.join(MODEL_DIR, 'trainer_ppo_model.zip'))
