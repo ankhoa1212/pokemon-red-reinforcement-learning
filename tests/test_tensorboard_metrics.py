@@ -268,3 +268,29 @@ def test_stitch_sync_failed_batch_rolls_forward_into_next_success(tmp_path):
     assert len(logger.image_calls) == 1
     assert os.path.exists(callback.master_map_path)
     assert callback._already_stitched_screenshots == {str(path_a), str(path_b)}
+
+
+# --- Training-end flush ------------------------------------------------
+#
+# Without this, a run ending mid-interval (i.e. not on an exact multiple
+# of stitch_sync_interval -- the common case) would permanently drop that
+# tail batch from ever entering the master map, undercutting the "master
+# map is a comprehensive persistent record" goal.
+
+def test_training_end_flushes_pending_screenshots_not_yet_synced(tmp_path):
+    # stitch_sync_interval is set high enough that a single rollout-end
+    # never triggers its own sync, so any map that does appear can only
+    # be attributed to the training-end flush.
+    callback, env_data_directory = make_map_callback(tmp_path, stitch_sync_interval=10)
+    _save_overlapping_screenshot_pair(env_data_directory)
+
+    callback._on_rollout_end()
+    assert callback.model.logger.image_calls == []
+    assert not os.path.exists(callback.master_map_path)
+
+    callback._on_training_end()
+
+    logger = callback.model.logger
+    assert len(logger.image_calls) == 1
+    assert logger.image_calls[0][0] == "env_stats/master_map"
+    assert os.path.exists(callback.master_map_path)

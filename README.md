@@ -36,7 +36,7 @@ python main.py
 - [x] Add persistent, count-based exploration reward (shared across parallel training workers)
 - [ ] Tune exploration-reward hash granularity (downsample resolution, quantization levels) based on observed training behavior (now per-run configurable and observable via TensorBoard distinct-state metrics; picking final values needs a real training run, not yet performed)
 - [x] Register Gymnasium environment to be able to use ```gym.make()``` ([here](https://gymnasium.farama.org/introduction/create_custom_env/#registering-and-making-the-environment))
-- [ ] Add map stitching of current area (script exists in `stitching/` but isn't wired into the environment or reward)
+- [x] Add map stitching of current area (every ~10 rollouts, discovered-state screenshots from all workers are merged into a persistent `images/master_map.png` and logged to TensorBoard; observational only, no reward/termination/observation impact)
 - [ ] Add identification of new areas
   - [ ] Test template matching method
 - [ ] Adjust reward based on exploring map with map stitching and new area identification
